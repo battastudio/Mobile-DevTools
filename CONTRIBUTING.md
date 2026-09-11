@@ -10,8 +10,7 @@ to hack on. Please follow them — CI enforces the important ones.
    lines, split it by responsibility. This applies to **every** file, including
    browser bundles under `public/` — split those into ordered `<script>`
    modules (each attaches what the next needs to `window.*`) rather than
-   shipping one large file. The only exception is `docs-site/`, which has its
-   own Astro toolchain and dependencies. Check locally:
+   shipping one large file. Check locally:
    ```sh
    node scripts/check-lines.js
    ```
@@ -26,7 +25,8 @@ to hack on. Please follow them — CI enforces the important ones.
    `lib/<domain>/*` (services + pure engine). Never skip a layer.
 
 4. **Zero runtime dependencies.** Tool code uses the Node standard library
-   only — no npm packages. (`docs-site/` is the sole place deps are allowed.)
+   only — no npm packages. (The docs site, which has its own Astro toolchain,
+   lives in a separate repo: `battastudio/Mobile-DevTools-Docs`.)
    Before writing code, climb the ladder: does it need to exist at all? Does
    the stdlib already do it? Can it be one line?
 
@@ -62,7 +62,8 @@ to hack on. Please follow them — CI enforces the important ones.
     variables only.
 
 15. **Docs as you go.** Every tool folder has a `README`; every user-facing
-    feature has a page under `docs/`.
+    feature has a page in the docs site
+    ([battastudio/Mobile-DevTools-Docs](https://github.com/battastudio/Mobile-DevTools-Docs)).
 
 ## Architecture at a glance
 
@@ -75,7 +76,8 @@ to hack on. Please follow them — CI enforces the important ones.
 - **No accounts.** There is no login, no users, no server-side state beyond
   local JSON config files under `~/.mobile-devtools/`.
 
-See `docs/architecture.md` for the full picture.
+See the [Architecture page](https://battastudio.github.io/Mobile-DevTools-Docs/reference/architecture/)
+for the full picture.
 
 ## Before you open a PR
 

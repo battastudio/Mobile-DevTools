@@ -76,8 +76,9 @@ the 150-lines-per-file cap).
 
 Full docs — a getting-started guide, per-tool walkthroughs, and feature
 deep-dives — are published at
-**<https://battastudio.github.io/Mobile-DevTools/>** (built with Astro Starlight
-from the `docs-site/` folder).
+**<https://battastudio.github.io/Mobile-DevTools-Docs/>**. They're built with
+Astro Starlight and live in their own repo:
+[battastudio/Mobile-DevTools-Docs](https://github.com/battastudio/Mobile-DevTools-Docs).
 
 ## Requirements
 

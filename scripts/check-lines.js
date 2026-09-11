@@ -1,7 +1,7 @@
 'use strict';
 // CI gate: no source file may exceed MAX lines — the repo's core readability rule.
-// Exempt: node_modules, .git, docs-site (own Astro toolchain). The 150-line cap applies to ALL other
-// code, including browser bundles under public/ — split them into ordered <script> modules instead.
+// Exempt: node_modules, .git. The 150-line cap applies to ALL other code,
+// including browser bundles under public/ — split them into ordered <script> modules instead.
 const fs = require('fs');
 const path = require('path');
 
@@ -9,7 +9,7 @@ const ROOT = path.join(__dirname, '..');
 const MAX = 150;
 const EXT = new Set(['.js', '.mjs', '.cjs']);
 const SKIP_DIRS = new Set(['node_modules', '.git']);
-const SKIP_PATHS = ['docs-site'];
+const SKIP_PATHS = [];
 
 const isExempt = (rel) => SKIP_PATHS.some((p) => rel === p || rel.startsWith(p + path.sep));
 

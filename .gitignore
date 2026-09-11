@@ -23,7 +23,3 @@ rclone.conf
 **/.bh-port
 **/.dev-data/
 *.db
-
-# docs site build output
-docs-site/dist/
-docs-site/.astro/
