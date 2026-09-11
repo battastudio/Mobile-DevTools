@@ -3,9 +3,9 @@
 // upload a generated card for a build. Single-user + local rclone (no team log to attach to).
 const fs = require('fs');
 const path = require('path');
-const { ROOT, RCLONE, ARTIFACTS_DIR, readConfig, projectsRoot, sendJson } = require('../state');
+const { ROOT, RCLONE, ARTIFACTS_DIR, readConfig, projectSources, sendJson } = require('../state');
 const { run, captureCmd, rc } = require('../shell');
-const { scanProjects, detectApp } = require('../project');
+const { scanAll, detectApp } = require('../project');
 
 async function handleShareImage(req, res, body) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
@@ -36,7 +36,7 @@ async function handleMkdirs(req, res) {
     const cfg = readConfig();
     const base = `${cfg.onedrive.remote}:${cfg.onedrive.base}`;
     const mk = async (p) => { try { await run(RCLONE, rc(['mkdir', p]), ROOT, () => {}); log('✓ ' + p); } catch (e) { log('✖ ' + p + ' — ' + (e.message || '').split('\n')[0]); } };
-    const projects = scanProjects(projectsRoot());
+    const projects = scanAll(projectSources());
     log(`Creating folders for ${projects.length} project(s)…`);
     for (const pr of projects) {
       const a = detectApp(pr.path); const name = a.repo || a.name;

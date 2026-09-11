@@ -9,34 +9,62 @@ const _skel = (n = 4) => `<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
 window.V.dashboard = async function () {
   BH.view = 'dashboard'; if (window.setShell) setShell('dashboard');
   _body().innerHTML = _skel(6);
-  const d = await API.dashboard(BH.root).catch(() => ({ projects: [], builds: [], storage: {} }));
-  BH.projects = d.projects || []; BH.builds = d.builds || []; BH.storage = d.storage || {}; BH.root = d.root || BH.root; BH.running = d.running || {};
-  const grid = BH.projects.length
-    ? `<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">${BH.projects.map(C.projectCard).join('')}</div>`
-    : `<div class="surface p-6 text-sm text-slate-400">No Flutter apps under <span class="font-mono">${esc(BH.root)}</span>. Change the path above (or set <span class="font-mono">FLUTTER_PROJECTS</span>) to point at your Flutter projects.</div>`;
+  const [d, suggest] = await Promise.all([
+    API.dashboard().catch(() => ({ projects: [], builds: [], storage: {}, sources: {} })),
+    API.suggestRoots(),
+  ]);
+  BH.projects = d.projects || []; BH.builds = d.builds || []; BH.storage = d.storage || {}; BH.running = d.running || {};
+  BH.sources = d.sources || { roots: [], pinned: [], recursive: false };
   _body().innerHTML = `
     ${C.kpis(d)}
-    <div class="flex items-center gap-2 mb-3 flex-wrap">
+    ${C.sourcesPanel(BH, suggest)}
+    <div class="flex items-center gap-2 mb-3">
       <div class="eyebrow">Projects</div>
-      <input id="bh-root" class="field text-[12px] font-mono py-1 px-2" style="min-width:min(440px,60vw)" value="${esc(BH.root)}" placeholder="/path/to/your/flutter/projects" spellcheck="false" />
-      <button id="bh-setroot" class="btn btn-secondary text-xs px-2 py-1">${ICON.check || ''}Set path</button>
+      <input id="bh-search" class="field text-[12px] py-1 px-2" style="width:min(260px,50vw)" placeholder="Search projects…" spellcheck="false"/>
+      <span id="bh-count" class="text-[11px] text-slate-500"></span>
       <button id="bh-refresh" class="btn btn-ghost text-xs px-2 py-1 ml-auto">${ICON.refresh}Refresh</button>
     </div>
-    ${grid}`;
-  const setRoot = async () => {
-    const r = await API.saveRoot(el('#bh-root').value).catch(() => null);
-    if (r && r.root) { BH.root = r.root; toast('Projects root set', 'ok'); V.dashboard(); }
-    else toast('Could not set path', 'err');
-  };
-  el('#bh-setroot').onclick = setRoot;
-  el('#bh-root').onkeydown = (e) => { if (e.key === 'Enter') setRoot(); };
+    <div id="bh-grid"></div>`;
+  wireSources();
+  renderGrid('');
+  el('#bh-search').oninput = (e) => renderGrid(e.target.value);
   el('#bh-refresh').onclick = () => V.dashboard();
-  _body().querySelectorAll('[data-open]').forEach((b) => b.onclick = () => V.project(b.dataset.open));
 };
+
+// Filter the project grid client-side by name/path; (re)wire card open + reveal after each render.
+function renderGrid(q) {
+  const s = (q || '').trim().toLowerCase();
+  const list = s ? BH.projects.filter((p) => (p.name + ' ' + p.path).toLowerCase().includes(s)) : BH.projects;
+  el('#bh-count').textContent = s ? `${list.length} of ${BH.projects.length}` : `${BH.projects.length} app${BH.projects.length === 1 ? '' : 's'}`;
+  el('#bh-grid').innerHTML = list.length
+    ? `<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">${list.map(C.projectCard).join('')}</div>`
+    : `<div class="surface p-6 text-sm text-slate-400">${BH.projects.length ? 'No projects match your search.' : 'No Flutter apps found. Add a scan root or pin a project in <b>Project sources</b> above.'}</div>`;
+  el('#bh-grid').querySelectorAll('[data-open]').forEach((b) => b.onclick = () => V.project(b.dataset.open));
+  el('#bh-grid').querySelectorAll('[data-reveal]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); API.reveal(b.dataset.reveal); });
+}
+
+// Wire the sources panel: add/remove roots & pinned, recursive toggle, suggestions, reveal.
+function wireSources() {
+  const save = async () => {
+    const r = await API.saveSources(BH.sources).catch(() => null);
+    if (!r) return toast('Could not save sources', 'err');
+    BH.sources = r.sources; (r.invalid || []).forEach((i) => toast(`Skipped ${i.path} — ${i.reason}`, 'err'));
+    V.dashboard();
+  };
+  const add = (inputId, key) => { const v = el('#' + inputId).value.trim(); if (v) { BH.sources[key] = [...BH.sources[key], v]; save(); } };
+  el('#bh-addroot').onclick = () => add('bh-add-root', 'roots');
+  el('#bh-add-root').onkeydown = (e) => { if (e.key === 'Enter') add('bh-add-root', 'roots'); };
+  el('#bh-addpin').onclick = () => add('bh-add-pin', 'pinned');
+  el('#bh-add-pin').onkeydown = (e) => { if (e.key === 'Enter') add('bh-add-pin', 'pinned'); };
+  el('#bh-recursive').onchange = (e) => { BH.sources.recursive = e.target.checked; save(); };
+  _body().querySelectorAll('[data-rm]').forEach((b) => b.onclick = () => { const key = b.dataset.kind === 'pinned' ? 'pinned' : 'roots'; BH.sources[key] = BH.sources[key].filter((x) => x !== b.dataset.rm); save(); });
+  _body().querySelectorAll('[data-suggest]').forEach((b) => b.onclick = () => { BH.sources.roots = [...new Set([...BH.sources.roots, b.dataset.suggest])]; save(); });
+  _body().querySelectorAll('[data-reveal]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); API.reveal(b.dataset.reveal); });
+}
 
 window.V.reports = async function () {
   BH.view = 'reports'; if (window.setShell) setShell('reports');
-  const b = BH.builds.length ? BH.builds : (await API.dashboard(BH.root).catch(() => ({ builds: [] }))).builds || [];
+  const b = BH.builds.length ? BH.builds : (await API.dashboard().catch(() => ({ builds: [] }))).builds || [];
   BH.builds = b;
   const envs = [...new Set(b.map((x) => x.env).filter(Boolean))];
   _body().innerHTML = `

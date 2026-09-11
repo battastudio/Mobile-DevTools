@@ -23,13 +23,14 @@
   .fl-cond{font-size:11px;color:var(--ink2);margin-top:5px;padding:6px 9px;border-left:2px solid var(--brand);background:var(--sunken);border-radius:0 8px 8px 0}
   .fl-tab{padding:6px 12px;font-size:12px;border-radius:8px;color:var(--ink2);cursor:pointer}
   .fl-tab.on{background:var(--raised);color:var(--ink);box-shadow:inset 0 0 0 1px var(--edge2)}
-  .fl-file{font-size:12px;padding:3px 8px;border-radius:7px;cursor:pointer;color:var(--ink2);font-family:'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fl-file{font-size:12px;padding:3px 8px;border-radius:7px;cursor:pointer;color:var(--ink2);font-family:'JetBrains Mono',monospace;display:flex;align-items:center;min-width:0}
   .fl-file:hover{background:var(--hover);color:var(--ink)}
   .fl-file.on{background:var(--raised);color:var(--ink)}
   .fl-file.dir{cursor:default;color:var(--ink2)}
   .fl-file.dir:hover{background:transparent;color:var(--ink2)}
-  .tree-prefix{color:var(--muted);white-space:pre}
-  .fl-scroll{max-height:64vh;overflow:auto}
+  .tree-prefix{color:var(--muted);white-space:pre;flex:none}
+  .fl-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fl-scroll{max-height:64vh;overflow-y:auto;overflow-x:hidden}
   .fl-updating{opacity:.6;transition:opacity .15s}
   .fl-sw{width:38px;height:22px;border-radius:999px;background:var(--edge2);position:relative;cursor:pointer;transition:.15s;flex:none}
   .fl-sw.on{background:var(--brand)}

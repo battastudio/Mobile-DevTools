@@ -2,6 +2,7 @@
 // Project + per-app routes: the dashboard payload, project list/detail, per-app config saves,
 // health, git metadata, changelog, and the app icon image.
 const fs = require('fs');
+const { spawn } = require('child_process');
 const { BUILDS_JSON, readJson, readConfig, projectsRoot } = require('../state');
 const { dashboardData, handleAppSave, handleFavorite, handleReorder } = require('../dashboard');
 const { detectApp, scanProjects, gitBranches, gitLastCommit, gitChangelog, groupConventional, nextBuildNumber, appHealth, findAppIcon } = require('../project');
@@ -11,8 +12,16 @@ const { appleAuth, playAccount } = require('../signing-config');
 
 function register(app) {
   const J = app.sendJson;
-  app.r('GET', '/api/dashboard', ({ res, q }) => J(res, 200, dashboardData(q.get('root'))));
+  app.r('GET', '/api/dashboard', ({ res }) => J(res, 200, dashboardData()));
   app.r('GET', '/api/projects', ({ res, q }) => { const root = q.get('root') || projectsRoot(); return J(res, 200, { root, projects: scanProjects(root) }); });
+  // Open a project's folder in the OS file manager (Finder / Explorer / xdg). Args array — no shell.
+  app.r('POST', '/api/reveal', ({ res, body }) => {
+    const p = String((body || {}).path || '').trim();
+    if (!p || !fs.existsSync(p)) return J(res, 400, { error: 'path not found' });
+    const cmd = process.platform === 'darwin' ? 'open' : (process.platform === 'win32' ? 'explorer' : 'xdg-open');
+    try { spawn(cmd, [p], { detached: true, stdio: 'ignore' }).unref(); } catch {}
+    return J(res, 200, { ok: true });
+  }, { body: true });
   app.r('GET', '/api/project', ({ res, q }) => {
     const p = q.get('path');
     if (!p || !fs.existsSync(p)) return J(res, 404, { error: 'not found' });

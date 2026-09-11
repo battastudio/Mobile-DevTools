@@ -68,7 +68,7 @@ window.FL_OUTPUT = {
     <div class="grid grid-cols-1 md:grid-cols-[minmax(190px,260px)_1fr] gap-3">
       <div class="flex flex-col gap-0.5 fl-scroll pr-1">
         <div v-for="r in tree" :key="r.prefix+r.name" class="fl-file" :class="{on: current && current.path===r.path, dir: r.dir}"
-             :title="r.path||r.name" @click="r.path && (sel=r.path)"><span class="tree-prefix">{{r.prefix}}</span>{{r.name}}</div>
+             :title="r.path||r.name" @click="r.path && (sel=r.path)"><span class="tree-prefix">{{r.prefix}}</span><span class="fl-name">{{r.name}}</span></div>
       </div>
       <div class="min-w-0">
         <div v-if="current" class="flex items-center gap-2 mb-1.5">

@@ -16,7 +16,9 @@ window.API = {
   signing: (path) => _get('/api/signing/status?path=' + encodeURIComponent(path)),
   changelog: (path, env) => _get('/api/changelog?' + _q({ path, env, grouped: 1 })),
 
-  saveRoot: (root) => postJson('/api/setup/root', { root }),   // persist the projects root
+  saveSources: (sources) => postJson('/api/setup/sources', sources),   // { roots, pinned, recursive }
+  suggestRoots: () => _get('/api/setup/suggest-roots').then((r) => r.roots || []).catch(() => []),
+  reveal: (path) => postJson('/api/reveal', { path }),                 // open a folder in Finder
   post: (url, body) => postJson(url, body),          // kit.js
   stream: (url, body, box, done) => streamSSE(url, body, box, done),  // kit.js
   stopBuild: () => postJson('/api/build/stop', {}),

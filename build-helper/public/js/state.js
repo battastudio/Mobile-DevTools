@@ -7,6 +7,7 @@
 // local tool, so a plain object is plenty.
 window.BH = {
   view: 'dashboard', root: '', toolName: 'Build Helper',
+  sources: { roots: [], pinned: [], recursive: false },   // scan roots + pinned project paths
   projects: [], builds: [], storage: {}, running: { busy: false },
   project: null,          // the /api/project payload for the open project
   sel: null,              // open project path

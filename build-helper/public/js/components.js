@@ -42,12 +42,44 @@ window.C = {
         ${C.dot(health)}
         <span class="font-display font-semibold text-[14px] truncate flex-1">${esc(p.name)}</span>
         ${p.favorite ? '<span class="text-amber-300 text-xs">★</span>' : ''}
+        <span class="bh-reveal cursor-pointer text-slate-500 hover:text-slate-200 [&>svg]:w-3.5 [&>svg]:h-3.5" data-reveal="${esc(p.path)}" title="Reveal in Finder">${ICON.folder}</span>
         <span class="text-[11px] font-mono text-slate-500">v${esc(verName(p.version))}</span>
       </div>
       ${C.envChips(p)}
       <div class="text-xs mt-0.5">${lastHtml}</div>
       ${p.needsConfig ? '<div class="text-[11px] text-amber-300">needs setup — no env detected</div>' : ''}
     </button>`;
+  },
+
+  // The project-sources manager: scan roots + pinned projects + recursive toggle + suggestions.
+  sourcesPanel(BH, suggest) {
+    const s = BH.sources || { roots: [], pinned: [], recursive: false };
+    const row = (val, kind) => `<div class="flex items-center gap-2 py-1">
+      <span class="text-[12px] font-mono truncate flex-1" title="${esc(val)}">${esc(val)}</span>
+      <button class="btn btn-ghost text-[11px] !px-1.5 !py-0.5 [&>svg]:w-3.5 [&>svg]:h-3.5" data-reveal="${esc(val)}" title="Reveal in Finder">${ICON.folder}</button>
+      <button class="btn btn-ghost text-[11px] !px-1.5 !py-0.5 text-rose-300" data-rm="${esc(val)}" data-kind="${kind}" title="Remove">✕</button>
+    </div>`;
+    const list = (arr, kind, empty) => arr.length ? arr.map((v) => row(v, kind)).join('') : `<div class="text-[11px] text-slate-500 py-1">${empty}</div>`;
+    const sugg = (suggest || []).filter((p) => !s.roots.includes(p));
+    return `<div class="surface p-4 mb-4">
+      <div class="flex items-center gap-2 mb-2">
+        <div class="eyebrow">Project sources</div>
+        <label class="ml-auto flex items-center gap-1.5 text-[12px] text-slate-400 cursor-pointer"><input id="bh-recursive" type="checkbox" ${s.recursive ? 'checked' : ''}/> Recursive scan</label>
+      </div>
+      <div class="grid sm:grid-cols-2 gap-5">
+        <div>
+          <div class="text-[11px] text-slate-500 mb-1">Scan roots</div>
+          ${list(s.roots, 'root', 'No roots — add one below.')}
+          <div class="flex gap-1.5 mt-2"><input id="bh-add-root" class="field text-[12px] font-mono py-1 px-2 flex-1" placeholder="/path/to/projects" spellcheck="false"/><button id="bh-addroot" class="btn btn-secondary text-xs px-2 py-1">Add root</button></div>
+          ${sugg.length ? `<div class="flex flex-wrap gap-1.5 mt-2">${sugg.map((p) => `<button class="btn btn-ghost text-[11px] !px-2 !py-0.5" data-suggest="${esc(p)}">+ ${esc(p.replace(/^.*\//, '~/'))}</button>`).join('')}</div>` : ''}
+        </div>
+        <div>
+          <div class="text-[11px] text-slate-500 mb-1">Pinned projects</div>
+          ${list(s.pinned, 'pinned', 'No pinned projects.')}
+          <div class="flex gap-1.5 mt-2"><input id="bh-add-pin" class="field text-[12px] font-mono py-1 px-2 flex-1" placeholder="/path/to/one/flutter/app" spellcheck="false"/><button id="bh-addpin" class="btn btn-secondary text-xs px-2 py-1">Pin app</button></div>
+        </div>
+      </div>
+    </div>`;
   },
 
   // One artifact toggle chip for the build form.
