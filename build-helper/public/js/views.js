@@ -15,22 +15,33 @@ window.V.dashboard = async function () {
   ]);
   BH.projects = d.projects || []; BH.builds = d.builds || []; BH.storage = d.storage || {}; BH.running = d.running || {};
   BH.sources = d.sources || { roots: [], pinned: [], recursive: false };
-  const grid = BH.projects.length
-    ? `<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">${BH.projects.map(C.projectCard).join('')}</div>`
-    : `<div class="surface p-6 text-sm text-slate-400">No Flutter apps found. Add a scan root or pin a project in <b>Project sources</b> above.</div>`;
   _body().innerHTML = `
     ${C.kpis(d)}
     ${C.sourcesPanel(BH, suggest)}
     <div class="flex items-center gap-2 mb-3">
       <div class="eyebrow">Projects</div>
-      <span class="text-[11px] text-slate-500">${BH.projects.length} app${BH.projects.length === 1 ? '' : 's'}</span>
+      <input id="bh-search" class="field text-[12px] py-1 px-2" style="width:min(260px,50vw)" placeholder="Search projects…" spellcheck="false"/>
+      <span id="bh-count" class="text-[11px] text-slate-500"></span>
       <button id="bh-refresh" class="btn btn-ghost text-xs px-2 py-1 ml-auto">${ICON.refresh}Refresh</button>
     </div>
-    ${grid}`;
+    <div id="bh-grid"></div>`;
   wireSources();
+  renderGrid('');
+  el('#bh-search').oninput = (e) => renderGrid(e.target.value);
   el('#bh-refresh').onclick = () => V.dashboard();
-  _body().querySelectorAll('[data-open]').forEach((b) => b.onclick = () => V.project(b.dataset.open));
 };
+
+// Filter the project grid client-side by name/path; (re)wire card open + reveal after each render.
+function renderGrid(q) {
+  const s = (q || '').trim().toLowerCase();
+  const list = s ? BH.projects.filter((p) => (p.name + ' ' + p.path).toLowerCase().includes(s)) : BH.projects;
+  el('#bh-count').textContent = s ? `${list.length} of ${BH.projects.length}` : `${BH.projects.length} app${BH.projects.length === 1 ? '' : 's'}`;
+  el('#bh-grid').innerHTML = list.length
+    ? `<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">${list.map(C.projectCard).join('')}</div>`
+    : `<div class="surface p-6 text-sm text-slate-400">${BH.projects.length ? 'No projects match your search.' : 'No Flutter apps found. Add a scan root or pin a project in <b>Project sources</b> above.'}</div>`;
+  el('#bh-grid').querySelectorAll('[data-open]').forEach((b) => b.onclick = () => V.project(b.dataset.open));
+  el('#bh-grid').querySelectorAll('[data-reveal]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); API.reveal(b.dataset.reveal); });
+}
 
 // Wire the sources panel: add/remove roots & pinned, recursive toggle, suggestions, reveal.
 function wireSources() {
