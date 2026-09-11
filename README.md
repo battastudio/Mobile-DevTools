@@ -24,6 +24,34 @@ is uploaded anywhere, and there is no login.
 | 🛡️ **Mobile Security** | OWASP Mobile Top 10 scanning for Flutter apps — findings, grading, quality gate, SBOM, CVE lookup, and git-secret detection. |
 | 🧱 **Flutter Launchpad** | Assemble a project config in the UI and generate a complete, best-practice Flutter project scaffold you can download as a zip or hand to Build Helper. |
 
+## Screenshots
+
+Everything runs locally in a dark, no-login dashboard. `node serve` opens the hub,
+which links to the four tools:
+
+<p align="center">
+  <img src=".github/screenshots/hub.png" alt="Mobile DevTools hub — the four tools" width="880">
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><b>🛡️ Mobile Security</b> — OWASP Mobile Top 10 scan: grade, quality gate, and findings with one-click fixes.</td>
+    <td width="50%"><b>🧪 Mobile QA</b> — a quality console: analyze / test / coverage runners, one grade per project.</td>
+  </tr>
+  <tr>
+    <td><img src=".github/screenshots/mobile-security.png" alt="Mobile Security — OWASP scan results"></td>
+    <td><img src=".github/screenshots/mobile-qa.png" alt="Mobile QA — quality console"></td>
+  </tr>
+  <tr>
+    <td width="50%"><b>🚀 Build Helper</b> — dashboard for environments, builds (APK/AAB/IPA) and distribution.</td>
+    <td width="50%"><b>🧱 Flutter Launchpad</b> — assemble a config and generate a best-practice Flutter scaffold.</td>
+  </tr>
+  <tr>
+    <td><img src=".github/screenshots/build-helper.png" alt="Build Helper — dashboard"></td>
+    <td><img src=".github/screenshots/flutter-launchpad.png" alt="Flutter Launchpad — config builder"></td>
+  </tr>
+</table>
+
 ## Quick start
 
 ```sh
@@ -47,8 +75,9 @@ the 150-lines-per-file cap).
 ## Documentation
 
 Full docs — a getting-started guide, per-tool walkthroughs, and feature
-deep-dives — live in [`docs/`](./docs) and are published as a website (see
-`docs-site/`).
+deep-dives — are published at
+**<https://battastudio.github.io/Mobile-DevTools/>** (built with Astro Starlight
+from the `docs-site/` folder).
 
 ## Requirements
 
