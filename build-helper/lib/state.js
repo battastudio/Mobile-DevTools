@@ -33,9 +33,28 @@ function readConfig() {
   return c;
 }
 function writeConfig(c) { writeJson(CONFIG_JSON, c); }
-function projectsRoot() { return readConfig().root || process.env.FLUTTER_PROJECTS || path.join(os.homedir(), 'mobileApps'); }
-// Persist (or clear) the scanned projects root. Blank → fall back to FLUTTER_PROJECTS / ~/mobileApps.
-function setProjectsRoot(root) { const c = readConfig(); const v = (root || '').trim(); if (v) c.root = v; else delete c.root; writeConfig(c); return projectsRoot(); }
+// Where Build Helper looks for apps: N scan roots + individually pinned project paths, plus a
+// recursive flag. Migrates the legacy single `root` (or FLUTTER_PROJECTS / ~/mobileApps) into roots[].
+function projectSources() {
+  const c = readConfig();
+  const roots = Array.isArray(c.roots) ? c.roots : [c.root || process.env.FLUTTER_PROJECTS || path.join(os.homedir(), 'mobileApps')];
+  return { roots, pinned: Array.isArray(c.pinned) ? c.pinned : [], recursive: !!c.recursive };
+}
+function projectsRoot() { return projectSources().roots[0] || path.join(os.homedir(), 'mobileApps'); } // back-compat single root
+const _uniq = (a) => [...new Set((a || []).map((x) => String(x || '').trim()).filter(Boolean))];
+function setSources(s) {
+  const c = readConfig();
+  c.roots = _uniq(s.roots); c.pinned = _uniq(s.pinned); c.recursive = !!s.recursive; delete c.root; // migrated
+  writeConfig(c); return projectSources();
+}
+// A source is usable if it exists; a pinned path must also look like a Flutter project (pubspec + lib).
+function validateSource(p, isPinned) {
+  const v = String(p || '').trim();
+  if (!v) return { ok: false, reason: 'empty' };
+  if (!fs.existsSync(v)) return { ok: false, reason: 'not found' };
+  if (isPinned && !(fs.existsSync(path.join(v, 'pubspec.yaml')) && fs.existsSync(path.join(v, 'lib')))) return { ok: false, reason: 'not a Flutter project' };
+  return { ok: true };
+}
 
 // ---------- running-build tracker (for Stop + one-at-a-time lock) ----------
 const running = { children: new Set(), aborted: false, busy: false, info: null, log: [], seq: 0 };
@@ -62,6 +81,6 @@ function sendJson(res, code, obj) {
 module.exports = {
   ID, DATA, ROOT, PORT, FLUTTER, RCLONE, ONEDRIVE_REMOTE, ONEDRIVE_BASE,
   CONFIG_JSON, BUILDS_JSON, CREDS_DIR, ARTIFACTS_DIR, LOGS_DIR, CHANGELOGS_DIR, LOGICAL_ENVS,
-  readJson, writeJson, esc, readConfig, writeConfig, projectsRoot, setProjectsRoot,
+  readJson, writeJson, esc, readConfig, writeConfig, projectsRoot, projectSources, setSources, validateSource,
   running, stopRunning, feedClients, feedHistory, broadcast, sendJson,
 };

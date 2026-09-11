@@ -3,8 +3,8 @@
 // artifact disk usage. The client computes KPIs/series/filters locally from `builds`.
 const fs = require('fs');
 const path = require('path');
-const { ARTIFACTS_DIR, BUILDS_JSON, readJson, readConfig, projectsRoot, running } = require('../state');
-const { scanProjects, appHealth } = require('../project');
+const { ARTIFACTS_DIR, BUILDS_JSON, readJson, readConfig, projectsRoot, projectSources, running } = require('../state');
+const { scanAll, appHealth } = require('../project');
 
 // Total + per-project artifact bytes under artifacts/.
 function storageData() {
@@ -21,15 +21,16 @@ function storageData() {
 
 // The per-app scan is the expensive part; cache it briefly so nav-backs and feed refreshes reuse it.
 let _dashCache = { key: '', t: 0, projects: null };
-function dashboardData(root) {
-  const rt = root || projectsRoot();
+function dashboardData() {
+  const sources = projectSources();
+  const key = JSON.stringify(sources);
   const all = readJson(BUILDS_JSON, []);
   const apps = readConfig().apps || {};
   const now = Date.now();
   let projects;
-  if (_dashCache.projects && _dashCache.key === rt && now - _dashCache.t < 4000) { projects = _dashCache.projects; }
+  if (_dashCache.projects && _dashCache.key === key && now - _dashCache.t < 4000) { projects = _dashCache.projects; }
   else {
-    projects = scanProjects(rt).map((p) => {
+    projects = scanAll(sources).map((p) => {
       const pb = all.filter((b) => b.path === p.path);
       const last = pb[0] || null;
       const h = appHealth(p.path, { needsConfig: p.needsConfig, firebase: p.firebase });
@@ -43,9 +44,9 @@ function dashboardData(root) {
       || ((a.order == null ? 1e9 : a.order) - (b.order == null ? 1e9 : b.order))
       || ((b.lastBuild ? new Date(b.lastBuild.time) : 0) - (a.lastBuild ? new Date(a.lastBuild.time) : 0))
       || a.name.localeCompare(b.name));
-    _dashCache = { key: rt, t: now, projects };
+    _dashCache = { key, t: now, projects };
   }
-  return { builds: all.slice(0, 500), projects, storage: storageData(), running: { busy: running.busy, info: running.info }, root: projectsRoot() };
+  return { builds: all.slice(0, 500), projects, storage: storageData(), running: { busy: running.busy, info: running.info }, root: projectsRoot(), sources };
 }
 
 function cleanupArtifacts(body) {
