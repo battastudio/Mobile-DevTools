@@ -61,8 +61,10 @@ cd Mobile-DevTools
 node serve
 ```
 
-Then open **http://localhost:4090**. That's it — no install, no `npm install`,
-no accounts.
+`node serve` opens **http://localhost:4090** for you automatically. That's it —
+no install, no `npm install`, no accounts. It's the only address you touch: the
+hub reclaims the tools' fixed ports on start (clearing any stale process) and
+runs all four behind that one URL.
 
 ## Why zero-dependency?
 

@@ -4,6 +4,7 @@
 // environment preflight (doctor). Issue-tracker config is NOT re-wired here — the shared kit
 // connectors layer (/api/connectors*) already owns that store; setup.js handleSetupTracker is unused.
 const { setupStatus, handleSetupPlay, handleSetupApple, handleSetupFirebaseApp, handleSetupFirebaseLogin, handleSetupNotify, handleSetupEmail } = require('../setup');
+const { setProjectsRoot } = require('../state');
 const { handleSetupRclone } = require('../onedrive');
 const { doctorData, doctorInstallCmd } = require('../dashboard');
 const { run } = require('../shell');
@@ -11,6 +12,7 @@ const { run } = require('../shell');
 function register(app) {
   const J = app.sendJson;
   app.r('GET', '/api/setup', ({ res }) => J(res, 200, setupStatus()));
+  app.r('POST', '/api/setup/root', ({ res, body }) => J(res, 200, { ok: true, root: setProjectsRoot((body || {}).root) }), { body: true });
   app.r('POST', '/api/setup/play', ({ res, body }) => handleSetupPlay(res, body), { body: true });
   app.r('POST', '/api/setup/apple', ({ res, body }) => handleSetupApple(res, body), { body: true });
   app.r('POST', '/api/setup/firebase-app', ({ res, body }) => handleSetupFirebaseApp(res, body), { body: true });

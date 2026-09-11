@@ -34,6 +34,8 @@ function readConfig() {
 }
 function writeConfig(c) { writeJson(CONFIG_JSON, c); }
 function projectsRoot() { return readConfig().root || process.env.FLUTTER_PROJECTS || path.join(os.homedir(), 'mobileApps'); }
+// Persist (or clear) the scanned projects root. Blank → fall back to FLUTTER_PROJECTS / ~/mobileApps.
+function setProjectsRoot(root) { const c = readConfig(); const v = (root || '').trim(); if (v) c.root = v; else delete c.root; writeConfig(c); return projectsRoot(); }
 
 // ---------- running-build tracker (for Stop + one-at-a-time lock) ----------
 const running = { children: new Set(), aborted: false, busy: false, info: null, log: [], seq: 0 };
@@ -60,6 +62,6 @@ function sendJson(res, code, obj) {
 module.exports = {
   ID, DATA, ROOT, PORT, FLUTTER, RCLONE, ONEDRIVE_REMOTE, ONEDRIVE_BASE,
   CONFIG_JSON, BUILDS_JSON, CREDS_DIR, ARTIFACTS_DIR, LOGS_DIR, CHANGELOGS_DIR, LOGICAL_ENVS,
-  readJson, writeJson, esc, readConfig, writeConfig, projectsRoot,
+  readJson, writeJson, esc, readConfig, writeConfig, projectsRoot, setProjectsRoot,
   running, stopRunning, feedClients, feedHistory, broadcast, sendJson,
 };

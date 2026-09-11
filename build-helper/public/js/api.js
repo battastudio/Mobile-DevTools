@@ -16,6 +16,7 @@ window.API = {
   signing: (path) => _get('/api/signing/status?path=' + encodeURIComponent(path)),
   changelog: (path, env) => _get('/api/changelog?' + _q({ path, env, grouped: 1 })),
 
+  saveRoot: (root) => postJson('/api/setup/root', { root }),   // persist the projects root
   post: (url, body) => postJson(url, body),          // kit.js
   stream: (url, body, box, done) => streamSSE(url, body, box, done),  // kit.js
   stopBuild: () => postJson('/api/build/stop', {}),

@@ -13,15 +13,23 @@ window.V.dashboard = async function () {
   BH.projects = d.projects || []; BH.builds = d.builds || []; BH.storage = d.storage || {}; BH.root = d.root || BH.root; BH.running = d.running || {};
   const grid = BH.projects.length
     ? `<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">${BH.projects.map(C.projectCard).join('')}</div>`
-    : `<div class="surface p-6 text-sm text-slate-400">No Flutter apps under <span class="font-mono">${esc(BH.root)}</span>. Set <span class="font-mono">FLUTTER_PROJECTS</span> or the projects root in Setup.</div>`;
+    : `<div class="surface p-6 text-sm text-slate-400">No Flutter apps under <span class="font-mono">${esc(BH.root)}</span>. Change the path above (or set <span class="font-mono">FLUTTER_PROJECTS</span>) to point at your Flutter projects.</div>`;
   _body().innerHTML = `
     ${C.kpis(d)}
-    <div class="flex items-center gap-2 mb-3">
+    <div class="flex items-center gap-2 mb-3 flex-wrap">
       <div class="eyebrow">Projects</div>
-      <span class="text-[11px] text-slate-500 font-mono">${esc(BH.root)}</span>
+      <input id="bh-root" class="field text-[12px] font-mono py-1 px-2" style="min-width:min(440px,60vw)" value="${esc(BH.root)}" placeholder="/path/to/your/flutter/projects" spellcheck="false" />
+      <button id="bh-setroot" class="btn btn-secondary text-xs px-2 py-1">${ICON.check || ''}Set path</button>
       <button id="bh-refresh" class="btn btn-ghost text-xs px-2 py-1 ml-auto">${ICON.refresh}Refresh</button>
     </div>
     ${grid}`;
+  const setRoot = async () => {
+    const r = await API.saveRoot(el('#bh-root').value).catch(() => null);
+    if (r && r.root) { BH.root = r.root; toast('Projects root set', 'ok'); V.dashboard(); }
+    else toast('Could not set path', 'err');
+  };
+  el('#bh-setroot').onclick = setRoot;
+  el('#bh-root').onkeydown = (e) => { if (e.key === 'Enter') setRoot(); };
   el('#bh-refresh').onclick = () => V.dashboard();
   _body().querySelectorAll('[data-open]').forEach((b) => b.onclick = () => V.project(b.dataset.open));
 };

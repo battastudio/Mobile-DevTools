@@ -42,6 +42,26 @@
     .home-scroll { position: absolute; inset: 0; overflow: auto; }
     .toolframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--bg); }
     .startcard { position: absolute; inset: 0; display: grid; place-items: center; }
+    /* slow-drifting aurora behind the hero */
+    @keyframes hubaurora { 0% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(2%,1.5%,0) scale(1.06); } 100% { transform: translate3d(0,0,0) scale(1); } }
+    .hero-aurora::before { animation: hubaurora 16s ease-in-out infinite; }
+    /* tool cards: hover lift + brand-tinted edge */
+    .toolcard { transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; }
+    .toolcard:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--brand) 45%, var(--edge2));
+      box-shadow: 0 18px 40px -22px rgba(123,123,255,.7); }
+    .kbd { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600; color: var(--ink2);
+      background: var(--sunken); box-shadow: inset 0 0 0 1px var(--edge2); }
+    /* ⌘K quick-jump palette */
+    .pal-back { position: fixed; inset: 0; z-index: 90; background: rgba(4,6,10,.55); backdrop-filter: blur(3px);
+      display: flex; align-items: flex-start; justify-content: center; padding-top: 13vh; }
+    .pal { width: min(560px, 92vw); background: var(--panel); border: 1px solid var(--edge2); border-radius: 16px;
+      box-shadow: 0 30px 80px -20px rgba(0,0,0,.75); overflow: hidden; }
+    .pal input { width: 100%; background: transparent; border: 0; outline: none; color: var(--ink); font-size: 15px;
+      padding: 15px 18px; border-bottom: 1px solid var(--edge); }
+    .pal-row { display: flex; align-items: center; gap: .6rem; padding: .55rem .85rem; cursor: pointer; color: var(--ink2); }
+    .pal-row.sel { background: var(--raised); color: var(--ink); }
+    @media (prefers-reduced-motion: reduce) { .hero-aurora::before { animation: none; } }
   </style>
 </head>
 <body style="color:var(--ink)">
@@ -63,6 +83,8 @@
         </button>
       </nav>
       <div class="shell-right">
+        <button class="btn btn-ghost text-sm" @click="openPal" title="Quick jump (⌘K)">⌘K</button>
+        <button class="btn btn-ghost text-sm !px-2" @click="flipTheme" title="Toggle light / dark" aria-label="Toggle theme" v-html="themeIcon"></button>
         <a v-if="active" class="btn btn-ghost text-sm" :href="frameUrl(active)" target="_blank" rel="noopener" title="Open in a new tab">↗</a>
         <a class="btn btn-ghost text-sm hidden sm:inline-flex" href="https://github.com/battastudio/Mobile-DevTools" target="_blank" rel="noopener">GitHub</a>
         <a class="btn btn-secondary text-sm" href="https://battastudio.github.io/Mobile-DevTools-Docs/" target="_blank" rel="noopener">Docs</a>
@@ -73,7 +95,7 @@
       <!-- Home / dashboard -->
       <section class="home-scroll" v-show="route === 'home'">
         <div class="max-w-6xl mx-auto px-5 py-8">
-          <section class="aurora surface p-8 sm:p-12 mb-8 overflow-hidden relative">
+          <section class="aurora hero-aurora surface p-8 sm:p-12 mb-8 overflow-hidden relative">
             <div class="relative">
               <div class="eyebrow mb-3">Self-hosted · Open source</div>
               <h1 class="font-display font-bold text-4xl sm:text-5xl leading-[1.05] tracking-tight max-w-2xl">
@@ -88,21 +110,22 @@
               </div>
               <div class="kit-log mt-6 inline-flex items-center gap-3 !py-2.5 !px-4">
                 <span class="text-muted select-none">$</span><span>git clone …/Mobile-DevTools &amp;&amp; cd Mobile-DevTools &amp;&amp; node serve</span>
+                <button class="btn btn-ghost !py-1 !px-2 text-xs ml-1" @click="copyCmd" title="Copy command">{{ copied ? '✓ Copied' : 'Copy' }}</button>
               </div>
             </div>
           </section>
 
           <div class="flex items-baseline justify-between mb-3">
             <h2 class="font-display font-bold text-lg">Your tools</h2>
-            <span class="text-xs text-muted">Click a tool to open it here — or ↗ to pop it out.</span>
+            <span class="text-xs text-muted"><span class="kbd">⌘K</span> to jump · ↗ to pop out.</span>
           </div>
           <section class="grid sm:grid-cols-2 gap-3">
-            <div v-for="t in tools" :key="t.id" class="surface p-5 flex flex-col gap-3 transition-colors hover:border-edge2 cursor-pointer" @click="t.present && go(t.id)">
+            <div v-for="t in tools" :key="t.id" class="surface toolcard p-5 flex flex-col gap-3 cursor-pointer" @click="t.present && go(t.id)">
               <div class="flex items-center gap-3">
                 <span class="icon-tile h-11 w-11" style="background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 90%,transparent),var(--brand2));color:#fff" v-html="icon(t.icon)"></span>
                 <div class="min-w-0">
                   <div class="font-semibold leading-tight">{{ t.name }}</div>
-                  <div class="text-[11px] font-mono text-muted">:{{ t.port }}</div>
+                  <!-- <div class="text-[11px] font-mono text-muted">:{{ t.port }}</div> -->
                 </div>
                 <span class="ml-auto" :class="statusClass(t)">{{ statusLabel(t) }}</span>
               </div>
@@ -138,6 +161,23 @@
         </div>
       </div>
     </div>
+
+    <!-- ⌘K quick-jump palette -->
+    <div v-if="palOpen" class="pal-back" @click.self="palOpen = false">
+      <div class="pal">
+        <input ref="palInput" v-model="palQ" placeholder="Jump to a tool…" @input="palSel = 0" @keydown="palKey" />
+        <div class="max-h-[46vh] overflow-auto py-1">
+          <div v-for="(t, i) in palList" :key="t.id" class="pal-row" :class="{ sel: i === palSel }"
+               @click="palGo(t)" @mousemove="palSel = i">
+            <span class="tdot" :class="{ on: t.running, busy: t.present && !t.running }"></span>
+            <span v-html="icon(t.icon)" class="opacity-80 [&>svg]:w-4 [&>svg]:h-4"></span>
+            <span class="flex-1">{{ t.name }}</span>
+            <span class="text-[11px] font-mono text-muted">:{{ t.port }}</span>
+          </div>
+          <div v-if="!palList.length" class="empty !py-6">No matching tool</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
@@ -153,20 +193,42 @@
     // Route lives in the hash so the URL stays http://localhost:4090 (#/build-helper, etc.).
     const parseRoute = () => (location.hash || '').replace(/^#\/?/, '') || 'home';
     createApp({
-      data() { return { tools: [], route: parseRoute(), opened: {}, timer: null }; },
+      data() { return { tools: [], route: parseRoute(), opened: {}, timer: null,
+        copied: false, palOpen: false, palQ: '', palSel: 0,
+        theme: document.documentElement.getAttribute('data-theme') || 'dark' }; },
       computed: {
         active() { return this.tools.find((t) => t.id === this.route) || null; },
         openedTools() { return this.tools.filter((t) => this.opened[t.id]); },
         runningCount() { return this.tools.filter((t) => t.running).length; },
+        palList() { const q = this.palQ.trim().toLowerCase(); return this.tools.filter((t) => t.present && (!q || t.name.toLowerCase().includes(q))); },
+        themeIcon() { return (typeof THEME_ICON !== 'undefined') ? (this.theme === 'light' ? THEME_ICON.moon : THEME_ICON.sun) : '☾'; },
       },
       async created() {
         await this.load();
         window.addEventListener('hashchange', () => { this.route = parseRoute(); this.markOpen(); });
+        window.addEventListener('keydown', this.onKey);
         this.markOpen();
         this.timer = setInterval(this.load, 4000);
+        // The hub shows its own nav toggle, so remove kit-dom's auto floating one (no duplicate).
+        const kill = () => { const b = document.getElementById('themebtn'); if (b) b.remove(); };
+        kill(); document.addEventListener('DOMContentLoaded', kill);
       },
       methods: {
         icon(name) { return (typeof ICON !== 'undefined' && ICON[name]) || ''; },
+        flipTheme() { if (typeof toggleTheme === 'function') this.theme = toggleTheme(); },
+        copyCmd() { navigator.clipboard.writeText('git clone https://github.com/battastudio/Mobile-DevTools.git && cd Mobile-DevTools && node serve'); this.copied = true; setTimeout(() => { this.copied = false; }, 1400); },
+        openPal() { this.palOpen = true; this.palQ = ''; this.palSel = 0; this.$nextTick(() => this.$refs.palInput && this.$refs.palInput.focus()); },
+        palKey(e) {
+          if (e.key === 'Escape') { this.palOpen = false; return; }
+          if (e.key === 'ArrowDown') { e.preventDefault(); this.palSel = Math.min(this.palSel + 1, this.palList.length - 1); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); this.palSel = Math.max(this.palSel - 1, 0); }
+          else if (e.key === 'Enter') { e.preventDefault(); this.palGo(this.palList[this.palSel]); }
+        },
+        palGo(t) { if (t) { this.palOpen = false; this.go(t.id); } },
+        onKey(e) {
+          if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); this.openPal(); return; }
+          if (e.key === 'Escape' && this.palOpen) this.palOpen = false;
+        },
         // Reach sibling tools on the same host the hub is served from (localhost / 127.0.0.1 / LAN IP).
         frameUrl(t) { return `http://${location.hostname}:${t.port}/`; },
         async load() { try { const d = await fetch('/api/tools').then((r) => r.json()); this.tools = d.tools || []; } catch {} },

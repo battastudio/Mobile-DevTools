@@ -19,16 +19,16 @@ kit.team.register(app);
 
 // The tool grid: catalog + live status (running/present) for each.
 app.r('GET', '/api/tools', async ({ res }) => {
-  const tools = await Promise.all(CATALOG.map(async (t) => ({
-    id: t.id, name: t.name, icon: t.icon, desc: t.desc, port: t.port,
-    url: `http://localhost:${t.port}`, ...(await procs.status(t)),
-  })));
+  const tools = await Promise.all(CATALOG.map(async (t) => {
+    const st = await procs.status(t); // st.port is the tool's REAL bound port (guards against stale ports)
+    return { id: t.id, name: t.name, icon: t.icon, desc: t.desc, ...st, url: `http://localhost:${st.port}` };
+  }));
   app.sendJson(res, 200, { tools });
 });
 app.r('POST', '/api/tools/restart', ({ res, body }) => {
   const t = CATALOG.find((x) => x.id === (body || {}).id);
   if (!t) return app.sendJson(res, 404, { error: 'unknown tool' });
-  procs.stopTool(t.id); procs.startTool(t);
+  procs.stopTool(t.id); procs.startTool(t).catch(() => {});
   app.sendJson(res, 200, { ok: true });
 }, { body: true });
 
@@ -36,7 +36,8 @@ const shutdown = () => { procs.stopAll(); process.exit(0); };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-app.start(HUB_PORT).then(() => {
-  const started = CATALOG.map((t) => procs.startTool(t)).filter(Boolean).length;
-  console.log(`Hub ready on http://localhost:${app.port} — spawned ${started}/${CATALOG.length} tools.`);
+app.start(HUB_PORT).then(async () => {
+  const recs = await Promise.all(CATALOG.map((t) => procs.startTool(t).catch(() => null)));
+  const started = recs.filter(Boolean).length;
+  console.log(`Hub ready — spawned ${started}/${CATALOG.length} tools. Everything lives at http://localhost:${app.port}`);
 });

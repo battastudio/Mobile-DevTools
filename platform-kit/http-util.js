@@ -71,4 +71,15 @@ function serveFile(res, baseDir, rel) {
 // Short git SHA of a repo dir — the version identity for every tool (no version files).
 function gitSha(cwd) { try { return execFileSync('git', ['-C', cwd, 'rev-parse', '--short', 'HEAD'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return 'dev'; } }
 
-module.exports = { fetchUrl, ensurePath, sendJson, html, sse, readBody, serveFile, gitSha, MIME, KIT_PUBLIC };
+// Free a fixed port held by a stale/foreign process: SIGTERM whatever is bound to it (never our own
+// PID). Returns true if it killed anything. Used to reclaim canonical ports from old/gated instances.
+function reclaimPort(port) {
+  try {
+    const pids = execFileSync('lsof', ['-ti', `:${port}`]).toString().trim().split(/\s+/).filter(Boolean);
+    let k = 0;
+    for (const pid of pids) { const n = +pid; if (n && n !== process.pid) { try { process.kill(n, 'SIGTERM'); k++; } catch {} } }
+    return k > 0;
+  } catch { return false; }
+}
+
+module.exports = { fetchUrl, ensurePath, sendJson, html, sse, readBody, serveFile, gitSha, reclaimPort, MIME, KIT_PUBLIC };
