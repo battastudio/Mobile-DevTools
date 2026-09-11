@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" class="dark" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Flutter Launchpad — Mobile DevTools</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="/kit/tailwind.js"></script>
+<link rel="stylesheet" href="/kit/kit.css">
+<style>
+  .fl-chip{cursor:pointer;border:1px solid var(--edge2);border-radius:9px;padding:5px 10px;font-size:12px;color:var(--ink2);background:var(--panel);transition:.12s}
+  .fl-chip:hover{border-color:var(--brand)}
+  .fl-chip.on{color:var(--ink);border-color:var(--brand);background:color-mix(in srgb,var(--brand) 12%,var(--panel))}
+  .fl-seg{display:inline-flex;border:1px solid var(--edge2);border-radius:10px;overflow:hidden;flex-wrap:wrap}
+  .fl-seg button{padding:6px 12px;font-size:12px;color:var(--ink2);background:var(--panel);border-right:1px solid var(--edge2)}
+  .fl-seg button:last-child{border-right:0}
+  .fl-seg button.on{color:#fff;background:linear-gradient(135deg,var(--brand),var(--brand2))}
+  .fl-in{width:100%;background:var(--sunken);border:1px solid var(--edge2);border-radius:9px;padding:7px 10px;color:var(--ink);font-size:13px}
+  .fl-help{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5}
+  .fl-cond{font-size:11px;color:var(--ink2);margin-top:5px;padding:6px 9px;border-left:2px solid var(--brand);background:var(--sunken);border-radius:0 8px 8px 0}
+  .fl-tab{padding:6px 12px;font-size:12px;border-radius:8px;color:var(--ink2);cursor:pointer}
+  .fl-tab.on{background:var(--raised);color:var(--ink);box-shadow:inset 0 0 0 1px var(--edge2)}
+  .fl-file{font-size:12px;padding:3px 8px;border-radius:7px;cursor:pointer;color:var(--ink2);font-family:'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fl-file:hover{background:var(--hover);color:var(--ink)}
+  .fl-file.on{background:var(--raised);color:var(--ink)}
+  .fl-sw{width:38px;height:22px;border-radius:999px;background:var(--edge2);position:relative;cursor:pointer;transition:.15s;flex:none}
+  .fl-sw.on{background:var(--brand)}
+  .fl-sw i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.15s}
+  .fl-sw.on i{left:18px}
+  pre.fl-code{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.55;white-space:pre;overflow:auto;color:var(--ink);background:var(--sunken);border:1px solid var(--edge);border-radius:12px;padding:14px;max-height:66vh}
+</style>
+</head>
+<body class="text-slate-200 min-h-screen">
+<div id="toasts" class="fixed top-4 right-4 z-[60] space-y-2 w-80"></div>
+<div id="app" class="max-w-7xl mx-auto px-5 py-6"></div>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="/kit/kit-dom.js"></script>
+<script src="/kit/kit-md-tour.js"></script>
+<script src="/kit/kit-icons.js"></script>
+<script src="/kit/kit-net-modal.js"></script>
+<script src="/kit/kit-nav.js"></script>
+<script src="/kit/kit-settings.js"></script>
+<script src="/kit/kit-connectors.js"></script>
+<script src="/kit/components.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>

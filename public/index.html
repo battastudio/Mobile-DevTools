@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mobile DevTools</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/kit/tailwind.js"></script>
+  <link rel="stylesheet" href="/kit/kit.css" />
+</head>
+<body style="color:var(--ink)">
+  <div id="toasts" class="fixed top-4 right-4 z-[80] space-y-2 w-80 max-w-[calc(100vw-2rem)]"></div>
+
+  <div id="app" class="max-w-6xl mx-auto px-5 py-6">
+    <!-- top bar -->
+    <header class="flex items-center gap-3 h-14 mb-8">
+      <div class="flex items-center gap-2.5">
+        <div class="h-9 w-9 rounded-[11px] grid place-items-center shadow-[0_6px_16px_-5px_rgba(123,123,255,.75)]" style="background:linear-gradient(135deg,var(--brand),var(--brand2))" v-html="icon('boxes')"></div>
+        <div class="font-display font-bold text-[17px] tracking-tight">Mobile DevTools</div>
+      </div>
+      <div class="ml-auto flex items-center gap-3 text-sm">
+        <a class="btn btn-ghost" href="https://github.com/battastudio/Mobile-DevTools" target="_blank" rel="noopener">GitHub</a>
+        <a class="btn btn-secondary" href="https://battastudio.github.io/Mobile-DevTools" target="_blank" rel="noopener">Docs</a>
+      </div>
+    </header>
+
+    <!-- hero -->
+    <section class="aurora surface p-8 sm:p-12 mb-8 overflow-hidden relative">
+      <div class="relative">
+        <div class="eyebrow mb-3">Self-hosted · Open source</div>
+        <h1 class="font-display font-bold text-4xl sm:text-5xl leading-[1.05] tracking-tight max-w-2xl">
+          Everything your Flutter team needs, <span style="background:linear-gradient(120deg,var(--brand),var(--brand2));-webkit-background-clip:text;background-clip:text;color:transparent">running on your machine.</span>
+        </h1>
+        <p class="text-ink2 mt-4 max-w-xl leading-relaxed">Build, QA, security-scan, and scaffold your apps from one local dashboard. No accounts, no cloud, no build step — clone it and go.</p>
+        <div class="flex flex-wrap items-center gap-2 mt-6">
+          <span class="status ok">No login</span>
+          <span class="status ok">Zero dependencies</span>
+          <span class="status ok">100% localhost</span>
+        </div>
+        <div class="kit-log mt-6 inline-flex items-center gap-3 !py-2.5 !px-4">
+          <span class="text-muted select-none">$</span><span>git clone …/Mobile-DevTools &amp;&amp; cd Mobile-DevTools &amp;&amp; node serve</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- tools grid -->
+    <div class="flex items-baseline justify-between mb-3">
+      <h2 class="font-display font-bold text-lg">Your tools</h2>
+      <span class="text-xs text-muted">{{ runningCount }}/{{ tools.length }} running</span>
+    </div>
+    <section class="grid sm:grid-cols-2 gap-3">
+      <div v-for="t in tools" :key="t.id" class="surface p-5 flex flex-col gap-3">
+        <div class="flex items-center gap-3">
+          <span class="icon-tile h-11 w-11" style="background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 90%,transparent),var(--brand2));color:#fff" v-html="icon(t.icon)"></span>
+          <div class="min-w-0">
+            <div class="font-semibold leading-tight">{{ t.name }}</div>
+            <div class="text-[11px] font-mono text-muted">:{{ t.port }}</div>
+          </div>
+          <span class="ml-auto" :class="statusClass(t)">{{ statusLabel(t) }}</span>
+        </div>
+        <p class="text-sm text-ink2 leading-relaxed flex-1">{{ t.desc }}</p>
+        <div class="flex items-center gap-2">
+          <a v-if="t.present" class="btn btn-primary text-sm" :href="t.url" target="_blank" rel="noopener">Open {{ t.name }}</a>
+          <span v-else class="btn btn-secondary text-sm opacity-50 cursor-not-allowed">Not installed</span>
+          <button v-if="t.present && !t.running" class="btn btn-ghost text-sm" @click="restart(t)">Start</button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="text-center text-xs text-muted mt-12 pb-6">
+      Mobile DevTools · <a class="underline hover:text-ink2" href="https://github.com/battastudio/Mobile-DevTools" target="_blank" rel="noopener">github.com/battastudio/Mobile-DevTools</a> · MIT
+    </footer>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="/kit/kit-dom.js"></script>
+  <script src="/kit/kit-md-tour.js"></script>
+  <script src="/kit/kit-icons.js"></script>
+  <script src="/kit/kit-net-modal.js"></script>
+  <script src="/kit/kit-nav.js"></script>
+  <script src="/kit/kit-settings.js"></script>
+  <script src="/kit/kit-connectors.js"></script>
+  <script>
+    const { createApp } = Vue;
+    createApp({
+      data() { return { tools: [], timer: null }; },
+      computed: { runningCount() { return this.tools.filter((t) => t.running).length; } },
+      async created() { await this.load(); this.timer = setInterval(this.load, 4000); },
+      methods: {
+        icon(name) { return (typeof ICON !== 'undefined' && ICON[name]) || ''; },
+        async load() { try { const d = await fetch('/api/tools').then((r) => r.json()); this.tools = d.tools || []; } catch {} },
+        statusClass(t) { return t.running ? 'status ok' : t.present ? 'status run' : 'status off'; },
+        statusLabel(t) { return t.running ? 'running' : t.present ? 'starting…' : 'unavailable'; },
+        async restart(t) { await fetch('/api/tools/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id }) }); setTimeout(this.load, 800); if (typeof toast === 'function') toast('Starting ' + t.name + '…', 'info'); },
+      },
+    }).mount('#app');
+  </script>
+</body>
+</html>

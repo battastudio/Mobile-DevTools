@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mobile QA — Mobile DevTools</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="/kit/tailwind.js"></script>
+<link rel="stylesheet" href="/kit/kit.css">
+<style>
+  /* QA-scoped polish (kept out of shared kit.css) */
+  .qa-toolbar{position:sticky;top:8px;z-index:20;background:color-mix(in srgb, var(--panel) 88%, transparent);backdrop-filter:blur(8px);border:1px solid var(--edge)}
+  .qa-menu{position:relative}
+  .qa-menu-pop{position:absolute;top:calc(100% + 6px);left:0;min-width:180px;z-index:40;padding:6px;border-radius:12px;border:1px solid var(--edge2);box-shadow:0 12px 34px rgba(0,0,0,.45)}
+  .menu-item{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:8px;font-size:12px;color:var(--ink2);text-decoration:none;cursor:pointer;background:none;border:0}
+  .menu-item:hover{background:var(--raised);color:var(--ink)}
+  .tb-div{width:1px;height:20px;background:var(--edge2);margin:0 2px}
+  .qa-spark{display:inline-block;vertical-align:middle}
+  .qa-skel{background:linear-gradient(90deg,var(--panel) 25%,var(--raised) 37%,var(--panel) 63%);background-size:400% 100%;animation:qashimmer 1.4s ease infinite;border-radius:12px}
+  @keyframes qashimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+  .qa-dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .qa-card{transition:border-color .15s,transform .05s}
+  .qa-card:hover{border-color:var(--edge2)}
+  .cmdk-item.active{background:var(--raised)}
+  /* Build-Helper-style pipeline strip */
+  .pipeline{display:flex;align-items:center;gap:0;flex-wrap:wrap}
+  .station{display:inline-flex;align-items:center;gap:.4rem;background:none;border:0;padding:.2rem .1rem;cursor:default}
+  .station .node{width:.62rem;height:.62rem;border-radius:999px;background:color-mix(in srgb,var(--stn,var(--muted)) 14%,transparent);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--stn,var(--muted)) 40%,transparent);transition:transform .18s,box-shadow .22s,background .22s}
+  .station .lbl{font-size:11px;color:var(--ink2);white-space:nowrap}
+  .station.done{--stn:var(--good)} .station.fail{--stn:var(--crit)} .station.warn{--stn:var(--warn)} .station.na{--stn:var(--muted)}
+  .station.done .node,.station.fail .node,.station.warn .node{background:var(--stn);box-shadow:0 0 0 3px color-mix(in srgb,var(--stn) 22%,transparent)}
+  .station.cur{--stn:var(--brand)}
+  .station.cur .node{background:var(--stn);box-shadow:0 0 0 2px color-mix(in srgb,var(--stn) 55%,transparent);animation:stnPulse 1.6s ease-in-out infinite}
+  .station.cur .lbl{color:var(--ink)}
+  .rail{height:2px;width:1.1rem;background:linear-gradient(90deg,var(--edge2),var(--edge));border-radius:2px;transition:background .25s}
+  .rail.lit{background:linear-gradient(90deg,var(--good),var(--good))}
+  @keyframes stnPulse{0%,100%{box-shadow:0 0 0 2px color-mix(in srgb,var(--stn) 35%,transparent)}50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--stn) 16%,transparent),0 0 12px color-mix(in srgb,var(--stn) 45%,transparent)}}
+  /* Fake-terminal log */
+  .qa-term{border:1px solid var(--edge);border-radius:14px;overflow:hidden;background:var(--sunken)}
+  .qa-term-head{display:flex;align-items:center;gap:.4rem;padding:7px 12px;border-bottom:1px solid var(--edge)}
+  .qa-term-dot{height:10px;width:10px;border-radius:50%}
+  details.step>summary{cursor:pointer;list-style:none} details.step>summary::-webkit-details-marker{display:none}
+  .qa-runpanel{position:sticky;top:88px}
+  @media (max-width:1023px){.qa-runpanel{position:static}}
+  .qa-cat{cursor:pointer;transition:border-color .15s,background .15s}
+  .qa-cat:hover{border-color:var(--brand)}
+  .qa-flash{animation:qaFlash 1.4s ease}
+  @keyframes qaFlash{0%,100%{box-shadow:0 0 0 0 transparent}20%,60%{box-shadow:0 0 0 2px var(--brand),0 0 20px -2px var(--brand)}}
+  /* env-style test-type cards */
+  .tt-card{transition:border-color .15s}
+  .tt-card.tt-open{border-color:var(--edge2)}
+  .tt-head:hover{background:rgba(255,255,255,.02)}
+  .station.sel .node{background:var(--stn,var(--brand));box-shadow:0 0 0 4px color-mix(in srgb,var(--stn,var(--brand)) 24%,transparent)}
+  .station{cursor:pointer}
+  /* merged test-suite chips */
+  .suite-chip{cursor:pointer;background:var(--panel);transition:opacity .15s,border-color .15s,background .15s}
+  .suite-chip.dim{opacity:.5}
+  .suite-chip.dim:hover{opacity:.85;border-color:var(--edge2)}
+  .suite-chip.sel{opacity:1;border-color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,var(--panel))}
+  .suite-chip.run{border-color:var(--brand)}
+  .suite-chip.run .qa-dot{animation:stnPulse 1.4s ease-in-out infinite;--stn:var(--brand)}
+</style>
+</head>
+<body class="text-slate-200 min-h-screen">
+<div id="toasts" class="fixed top-4 right-4 z-[60] space-y-2 w-80"></div>
+<div id="tt"></div>
+<div id="cmdk" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden items-center justify-center p-4 overflow-y-auto"></div>
+<div id="app" class="max-w-6xl mx-auto px-5 py-6"></div>
+<!-- Vue 3 global build (CDN) — zero-build, loaded like any other kit script -->
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="/kit/kit-dom.js"></script>
+<script src="/kit/kit-md-tour.js"></script>
+<script src="/kit/kit-icons.js"></script>
+<script src="/kit/kit-net-modal.js"></script>
+<script src="/kit/kit-nav.js"></script>
+<script src="/kit/kit-settings.js"></script>
+<script src="/kit/kit-connectors.js"></script>
+<script src="/kit/components.js"></script>
+<!-- QA app: split from the former single app.js into ordered classic scripts (shared global scope). app.js loads LAST. -->
+<script src="/js/state.js"></script>
+<script src="/js/shell.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/dashboard.js"></script>
+<script src="/js/run.js"></script>
+<script src="/js/device-picker.js"></script>
+<script src="/js/ai-share.js"></script>
+<script src="/js/ai-modals.js"></script>
+<script src="/js/tours.js"></script>
+<script src="/js/detail.js"></script>
+<script src="/js/detail-render.js"></script>
+<script src="/js/palette.js"></script>
+<script src="/js/device-lab.js"></script>
+<script src="/js/reports.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>

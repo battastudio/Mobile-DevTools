@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Build Helper — Mobile DevTools</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="/kit/tailwind.js"></script>
+<link rel="stylesheet" href="/kit/kit.css">
+<style>
+  /* Build-Helper-scoped polish (kept out of shared kit.css) */
+  .bh-term{border:1px solid var(--edge);border-radius:14px;background:var(--sunken);font:12px/1.55 'JetBrains Mono',monospace;padding:12px;height:300px;overflow:auto;white-space:pre-wrap}
+  .bh-dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .bh-card{transition:border-color .15s,transform .05s}
+  .bh-card:hover{border-color:var(--edge2)}
+  .bh-art{cursor:pointer;user-select:none;transition:border-color .15s,background .15s}
+  .bh-art.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 10%,var(--panel))}
+</style>
+</head>
+<body class="text-slate-200 min-h-screen">
+<div id="toasts" class="fixed top-4 right-4 z-[60] space-y-2 w-80"></div>
+<div id="tt"></div>
+<div id="cmdk" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden items-center justify-center p-4 overflow-y-auto"></div>
+<div id="app" class="max-w-6xl mx-auto px-5 py-6"></div>
+<!-- Vue 3 global build (CDN) — zero-build, loaded like any other kit script -->
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="/kit/kit-dom.js"></script>
+<script src="/kit/kit-md-tour.js"></script>
+<script src="/kit/kit-icons.js"></script>
+<script src="/kit/kit-net-modal.js"></script>
+<script src="/kit/kit-nav.js"></script>
+<script src="/kit/kit-settings.js"></script>
+<script src="/kit/kit-connectors.js"></script>
+<script src="/kit/components.js"></script>
+<!-- ordered UI modules: each attaches to window.* for the next -->
+<script src="/js/state.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/components.js"></script>
+<script src="/js/views.js"></script>
+<script src="/js/project.js"></script>
+<script src="/js/setup.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>

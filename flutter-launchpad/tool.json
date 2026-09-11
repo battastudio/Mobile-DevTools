@@ -1,0 +1,7 @@
+{
+  "id": "flutter-launchpad",
+  "name": "Flutter Launchpad",
+  "port": 4120,
+  "icon": "boxes",
+  "desc": "Assemble a project config in the UI and generate a complete, best-practice Flutter scaffold."
+}

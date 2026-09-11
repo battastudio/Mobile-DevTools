@@ -1,0 +1,29 @@
+# deps (only the docs site uses them)
+node_modules/
+
+# logs & OS cruft
+*.log
+.DS_Store
+
+# secrets & local config — NEVER commit
+.env
+.env.*
+/.mobile-devtools/
+**/config.json
+**/apps.json
+**/builds.json
+**/security.json
+**/signing.json
+**/config-secrets/
+rclone.conf
+
+# build artifacts & runtime state
+**/artifacts/
+**/.port
+**/.bh-port
+**/.dev-data/
+*.db
+
+# docs site build output
+docs-site/dist/
+docs-site/.astro/

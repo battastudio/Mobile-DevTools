@@ -1,0 +1,30 @@
+{
+  "_readme": "Copy this file to signing.json (same folder) and fill in absolute paths to your OWN local files. signing.json is git-ignored and never leaves your machine. Every field is optional — set only what you use. Per-app overrides in the Setup UI take precedence over these global defaults.",
+
+  "android": {
+    "keystore": "/absolute/path/to/upload-keystore.jks",
+    "keyProperties": "/absolute/path/to/key.properties"
+  },
+
+  "apple": {
+    "keyId": "ABCD1234EF",
+    "issuerId": "00000000-0000-0000-0000-000000000000",
+    "p8": "/absolute/path/to/AuthKey_ABCD1234EF.p8"
+  },
+
+  "play": {
+    "serviceAccount": "/absolute/path/to/play-service-account.json",
+    "defaultTrack": "internal"
+  },
+
+  "flavors": {
+    "dev": {
+      "baseUrl": "https://dev.api.example.com",
+      "dist": { "onedrive": ["apk"], "firebase": ["apk"] }
+    },
+    "prod": {
+      "baseUrl": "https://api.example.com",
+      "dist": { "play": ["aab"], "testflight": ["ipa"] }
+    }
+  }
+}

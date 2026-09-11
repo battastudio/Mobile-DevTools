@@ -1,0 +1,29 @@
+{
+  "name": "mobile-devtools",
+  "version": "1.0.0",
+  "description": "Zero-dependency, self-hosted toolkit for Flutter mobile teams — build, QA, security, and project scaffolding. No accounts, no cloud, no build step.",
+  "type": "commonjs",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "serve": "node serve.js",
+    "dev": "node serve.js",
+    "test": "node scripts/selftest-all.js"
+  },
+  "keywords": [
+    "flutter",
+    "mobile",
+    "devtools",
+    "build",
+    "qa",
+    "security",
+    "owasp",
+    "scaffold"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/battastudio/Mobile-DevTools.git"
+  }
+}
