@@ -59,7 +59,9 @@ function createKitServer(opts) {
   // ---- self-healing startup (reuse a live instance, reclaim a zombie port, or move up) ----
   const portFile = () => path.join(dataDir || repoDir, '.port');
   const writePortFile = (p) => { try { fs.mkdirSync(path.dirname(portFile()), { recursive: true }); fs.writeFileSync(portFile(), String(p)); } catch {} };
-  const probeHttp = (port) => new Promise((resolve) => { const req = http.get({ host: '127.0.0.1', port, path: '/api/health', timeout: 1500 }, (res) => { res.resume(); resolve(true); }); req.on('timeout', () => { req.destroy(); resolve(false); }); req.on('error', () => resolve(false)); });
+  // Read the responder's identity, not just "is something there" — a stale/old instance (e.g. a
+  // gated Build Helper with a login) answers /api/health too, and we must NOT adopt it as ours.
+  const probeHealth = (port) => new Promise((resolve) => { const req = http.get({ host: '127.0.0.1', port, path: '/api/health', timeout: 1500 }, (res) => { let d = ''; res.on('data', (c) => (d += c)); res.on('end', () => { try { resolve(JSON.parse(d)); } catch { resolve({}); } }); }); req.on('timeout', () => { req.destroy(); resolve(null); }); req.on('error', () => resolve(null)); });
   const reclaimPort = (port) => { try { const pids = execFileSync('lsof', ['-ti', `:${port}`]).toString().trim().split(/\s+/).filter(Boolean); let k = 0; for (const pid of pids) { const n = +pid; if (n && n !== process.pid) { try { process.kill(n, 'SIGTERM'); k++; } catch {} } } return k > 0; } catch { return false; } };
 
   async function start(basePort = defaultPort) {
@@ -67,7 +69,10 @@ function createKitServer(opts) {
     const listen = (p) => new Promise((resolve, reject) => { const onErr = (e) => { server.removeListener('error', onErr); reject(e); }; server.once('error', onErr); server.listen(p, () => { server.removeListener('error', onErr); resolve(p); }); });
     const ok = (p, note) => { chosenPort = p; writePortFile(p); console.log(`${name} → http://localhost:${p}${note ? ' ' + note : ''}`); server.on('error', (e) => console.error('server error:', e.message)); if (opts.onListen) try { opts.onListen(p); } catch {} };
     try { await listen(basePort); return ok(basePort); } catch (e) { if (e.code !== 'EADDRINUSE') throw e; }
-    if (await probeHttp(basePort)) { console.log(`${name} already running → http://localhost:${basePort}`); if (interactive) openBrowser(`http://localhost:${basePort}`); return process.exit(0); }
+    const running = await probeHealth(basePort); // adopt ONLY a live instance of *this* tool at *this* version
+    if (running && running.id === id && running.version === gitSha(repoDir)) { console.log(`${name} already running → http://localhost:${basePort}`); if (interactive) openBrowser(`http://localhost:${basePort}`); return process.exit(0); }
+    // A different/stale app holds the port (old gated build, other tool) → reclaim it below. ponytail:
+    // identity = id + git sha; if git is absent both sides read the same sentinel and we adopt — rare, port-move-up still saves us.
     if (reclaimPort(basePort)) { await new Promise((rs) => setTimeout(rs, 600)); try { await listen(basePort); if (interactive) openBrowser(`http://localhost:${basePort}`); return ok(basePort, '(reclaimed)'); } catch (e) { if (e.code !== 'EADDRINUSE') throw e; } }
     for (let p = basePort + 1; p <= basePort + 20; p++) { try { await listen(p); if (interactive) openBrowser(`http://localhost:${p}`); return ok(p, `(port ${basePort} busy)`); } catch (e) { if (e.code !== 'EADDRINUSE') throw e; } }
     console.error(`Could not bind ${basePort}..${basePort + 20}.`); process.exit(1);

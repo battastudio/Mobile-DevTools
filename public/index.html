@@ -9,69 +9,135 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/kit/tailwind.js"></script>
   <link rel="stylesheet" href="/kit/kit.css" />
+  <style>
+    /* One-URL hub shell: a fixed top bar switches tools; each tool loads in a full-height
+       iframe from its own origin (so every absolute /kit, /api, /catalog path stays valid).
+       Tools stay alive once opened — switching tabs never reloads their state. */
+    html, body { height: 100%; }
+    body { margin: 0; overflow: hidden; }
+    #shell { display: flex; flex-direction: column; height: 100vh; }
+    .shell-nav { display: flex; align-items: center; gap: .35rem; height: 56px; padding: 0 .85rem 0 1rem;
+      border-bottom: 1px solid var(--edge); background: color-mix(in srgb, var(--bg) 82%, transparent);
+      backdrop-filter: blur(16px); position: relative; z-index: 40; flex: none; }
+    .shell-brand { display: flex; align-items: center; gap: .6rem; padding: .35rem .5rem; border-radius: .7rem;
+      cursor: pointer; transition: background .15s; flex: none; }
+    .shell-brand:hover { background: var(--raised); }
+    .shell-brand.on { background: var(--raised); box-shadow: inset 0 0 0 1px var(--edge2); }
+    .shell-logo { height: 30px; width: 30px; border-radius: 9px; display: grid; place-items: center; color: #fff;
+      background: linear-gradient(135deg, var(--brand), var(--brand2)); box-shadow: 0 5px 14px -5px rgba(123,123,255,.75); }
+    .shell-logo svg { width: 17px; height: 17px; }
+    .shell-tabs { display: flex; align-items: center; gap: .15rem; margin-left: .35rem; overflow-x: auto; scrollbar-width: none; }
+    .shell-tabs::-webkit-scrollbar { display: none; }
+    .tooltab { display: inline-flex; align-items: center; gap: .5rem; padding: .45rem .8rem; border-radius: .65rem;
+      font-size: .85rem; font-weight: 600; color: var(--ink2); white-space: nowrap; cursor: pointer;
+      transition: background .15s, color .15s; }
+    .tooltab:hover { background: var(--raised); color: var(--ink); }
+    .tooltab.active { background: color-mix(in srgb, var(--brand) 12%, var(--raised)); color: var(--ink);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 34%, var(--edge2)); }
+    .tdot { width: 7px; height: 7px; border-radius: 999px; background: var(--base); flex: none; transition: background .2s, box-shadow .2s; }
+    .tdot.on { background: #34C77B; box-shadow: 0 0 0 3px rgba(52,199,123,.18); }
+    .tdot.busy { background: var(--warn); box-shadow: 0 0 0 3px rgba(245,179,66,.16); }
+    .shell-right { margin-left: auto; display: flex; align-items: center; gap: .4rem; flex: none; }
+    .stage { flex: 1; position: relative; overflow: hidden; background: var(--bg); }
+    .home-scroll { position: absolute; inset: 0; overflow: auto; }
+    .toolframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--bg); }
+    .startcard { position: absolute; inset: 0; display: grid; place-items: center; }
+  </style>
 </head>
 <body style="color:var(--ink)">
   <div id="toasts" class="fixed top-4 right-4 z-[80] space-y-2 w-80 max-w-[calc(100vw-2rem)]"></div>
 
-  <div id="app" class="max-w-6xl mx-auto px-5 py-6">
-    <!-- top bar -->
-    <header class="flex items-center gap-3 h-14 mb-8">
-      <div class="flex items-center gap-2.5">
-        <div class="h-9 w-9 rounded-[11px] grid place-items-center shadow-[0_6px_16px_-5px_rgba(123,123,255,.75)]" style="background:linear-gradient(135deg,var(--brand),var(--brand2))" v-html="icon('boxes')"></div>
-        <div class="font-display font-bold text-[17px] tracking-tight">Mobile DevTools</div>
-      </div>
-      <div class="ml-auto flex items-center gap-3 text-sm">
-        <a class="btn btn-ghost" href="https://github.com/battastudio/Mobile-DevTools" target="_blank" rel="noopener">GitHub</a>
-        <a class="btn btn-secondary" href="https://battastudio.github.io/Mobile-DevTools-Docs/" target="_blank" rel="noopener">Docs</a>
+  <div id="shell">
+    <!-- One nav for the whole suite -->
+    <header class="shell-nav">
+      <button class="shell-brand" :class="{ on: route === 'home' }" @click="go('home')" title="Home">
+        <span class="shell-logo" v-html="icon('boxes')"></span>
+        <span class="font-display font-bold text-[15px] tracking-tight hidden sm:inline">Mobile DevTools</span>
+      </button>
+      <nav class="shell-tabs">
+        <button v-for="t in tools" :key="t.id" class="tooltab" :class="{ active: route === t.id }"
+                @click="go(t.id)" :title="t.desc">
+          <span class="tdot" :class="{ on: t.running, busy: t.present && !t.running }"></span>
+          <span v-html="icon(t.icon)" class="opacity-80 [&>svg]:w-[15px] [&>svg]:h-[15px]"></span>
+          <span>{{ t.name }}</span>
+        </button>
+      </nav>
+      <div class="shell-right">
+        <a v-if="active" class="btn btn-ghost text-sm" :href="frameUrl(active)" target="_blank" rel="noopener" title="Open in a new tab">↗</a>
+        <a class="btn btn-ghost text-sm hidden sm:inline-flex" href="https://github.com/battastudio/Mobile-DevTools" target="_blank" rel="noopener">GitHub</a>
+        <a class="btn btn-secondary text-sm" href="https://battastudio.github.io/Mobile-DevTools-Docs/" target="_blank" rel="noopener">Docs</a>
       </div>
     </header>
 
-    <!-- hero -->
-    <section class="aurora surface p-8 sm:p-12 mb-8 overflow-hidden relative">
-      <div class="relative">
-        <div class="eyebrow mb-3">Self-hosted · Open source</div>
-        <h1 class="font-display font-bold text-4xl sm:text-5xl leading-[1.05] tracking-tight max-w-2xl">
-          Everything your Flutter team needs, <span style="background:linear-gradient(120deg,var(--brand),var(--brand2));-webkit-background-clip:text;background-clip:text;color:transparent">running on your machine.</span>
-        </h1>
-        <p class="text-ink2 mt-4 max-w-xl leading-relaxed">Build, QA, security-scan, and scaffold your apps from one local dashboard. No accounts, no cloud, no build step — clone it and go.</p>
-        <div class="flex flex-wrap items-center gap-2 mt-6">
-          <span class="status ok">No login</span>
-          <span class="status ok">Zero dependencies</span>
-          <span class="status ok">100% localhost</span>
-        </div>
-        <div class="kit-log mt-6 inline-flex items-center gap-3 !py-2.5 !px-4">
-          <span class="text-muted select-none">$</span><span>git clone …/Mobile-DevTools &amp;&amp; cd Mobile-DevTools &amp;&amp; node serve</span>
-        </div>
-      </div>
-    </section>
+    <div class="stage">
+      <!-- Home / dashboard -->
+      <section class="home-scroll" v-show="route === 'home'">
+        <div class="max-w-6xl mx-auto px-5 py-8">
+          <section class="aurora surface p-8 sm:p-12 mb-8 overflow-hidden relative">
+            <div class="relative">
+              <div class="eyebrow mb-3">Self-hosted · Open source</div>
+              <h1 class="font-display font-bold text-4xl sm:text-5xl leading-[1.05] tracking-tight max-w-2xl">
+                Everything your Flutter team needs, <span style="background:linear-gradient(120deg,var(--brand),var(--brand2));-webkit-background-clip:text;background-clip:text;color:transparent">on one local address.</span>
+              </h1>
+              <p class="text-ink2 mt-4 max-w-xl leading-relaxed">Build, QA, security-scan, and scaffold your apps from a single dashboard at <span class="font-mono text-ink">localhost:4090</span>. Switch tools from the bar above — no accounts, no cloud, no build step.</p>
+              <div class="flex flex-wrap items-center gap-2 mt-6">
+                <span class="status ok">No login</span>
+                <span class="status ok">Zero dependencies</span>
+                <span class="status ok">100% localhost</span>
+                <span class="status run">{{ runningCount }}/{{ tools.length }} tools running</span>
+              </div>
+              <div class="kit-log mt-6 inline-flex items-center gap-3 !py-2.5 !px-4">
+                <span class="text-muted select-none">$</span><span>git clone …/Mobile-DevTools &amp;&amp; cd Mobile-DevTools &amp;&amp; node serve</span>
+              </div>
+            </div>
+          </section>
 
-    <!-- tools grid -->
-    <div class="flex items-baseline justify-between mb-3">
-      <h2 class="font-display font-bold text-lg">Your tools</h2>
-      <span class="text-xs text-muted">{{ runningCount }}/{{ tools.length }} running</span>
-    </div>
-    <section class="grid sm:grid-cols-2 gap-3">
-      <div v-for="t in tools" :key="t.id" class="surface p-5 flex flex-col gap-3">
-        <div class="flex items-center gap-3">
-          <span class="icon-tile h-11 w-11" style="background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 90%,transparent),var(--brand2));color:#fff" v-html="icon(t.icon)"></span>
-          <div class="min-w-0">
-            <div class="font-semibold leading-tight">{{ t.name }}</div>
-            <div class="text-[11px] font-mono text-muted">:{{ t.port }}</div>
+          <div class="flex items-baseline justify-between mb-3">
+            <h2 class="font-display font-bold text-lg">Your tools</h2>
+            <span class="text-xs text-muted">Click a tool to open it here — or ↗ to pop it out.</span>
           </div>
-          <span class="ml-auto" :class="statusClass(t)">{{ statusLabel(t) }}</span>
+          <section class="grid sm:grid-cols-2 gap-3">
+            <div v-for="t in tools" :key="t.id" class="surface p-5 flex flex-col gap-3 transition-colors hover:border-edge2 cursor-pointer" @click="t.present && go(t.id)">
+              <div class="flex items-center gap-3">
+                <span class="icon-tile h-11 w-11" style="background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 90%,transparent),var(--brand2));color:#fff" v-html="icon(t.icon)"></span>
+                <div class="min-w-0">
+                  <div class="font-semibold leading-tight">{{ t.name }}</div>
+                  <div class="text-[11px] font-mono text-muted">:{{ t.port }}</div>
+                </div>
+                <span class="ml-auto" :class="statusClass(t)">{{ statusLabel(t) }}</span>
+              </div>
+              <p class="text-sm text-ink2 leading-relaxed flex-1">{{ t.desc }}</p>
+              <div class="flex items-center gap-2" @click.stop>
+                <button v-if="t.present" class="btn btn-primary text-sm" @click="go(t.id)">Open {{ t.name }}</button>
+                <span v-else class="btn btn-secondary text-sm opacity-50 cursor-not-allowed">Not installed</span>
+                <a v-if="t.present" class="btn btn-ghost text-sm" :href="frameUrl(t)" target="_blank" rel="noopener" title="Open in a new tab">↗</a>
+                <button v-if="t.present && !t.running" class="btn btn-ghost text-sm" @click="restart(t)">Start</button>
+              </div>
+            </div>
+          </section>
+
+          <footer class="text-center text-xs text-muted mt-12 pb-6">
+            Mobile DevTools · <a class="underline hover:text-ink2" href="https://github.com/battastudio/Mobile-DevTools" target="_blank" rel="noopener">github.com/battastudio/Mobile-DevTools</a> · MIT
+          </footer>
         </div>
-        <p class="text-sm text-ink2 leading-relaxed flex-1">{{ t.desc }}</p>
-        <div class="flex items-center gap-2">
-          <a v-if="t.present" class="btn btn-primary text-sm" :href="t.url" target="_blank" rel="noopener">Open {{ t.name }}</a>
-          <span v-else class="btn btn-secondary text-sm opacity-50 cursor-not-allowed">Not installed</span>
-          <button v-if="t.present && !t.running" class="btn btn-ghost text-sm" @click="restart(t)">Start</button>
+      </section>
+
+      <!-- Each opened tool lives in its own iframe (kept alive; shown when active) -->
+      <template v-for="t in openedTools" :key="t.id">
+        <iframe v-if="t.running" v-show="route === t.id" class="toolframe" :src="frameUrl(t)" :title="t.name"></iframe>
+      </template>
+
+      <!-- A tool that isn't up yet -->
+      <div v-if="active && !active.running" class="startcard">
+        <div class="surface p-8 text-center max-w-sm mx-4">
+          <span class="icon-tile h-12 w-12 mx-auto mb-4" style="background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff" v-html="icon(active.icon)"></span>
+          <div class="font-display font-bold text-lg mb-1">{{ active.name }}</div>
+          <p class="text-sm text-ink2 mb-5" v-if="active.present">This tool isn't running yet. Start it to open it here.</p>
+          <p class="text-sm text-ink2 mb-5" v-else>This tool folder isn't installed in your checkout.</p>
+          <button v-if="active.present" class="btn btn-primary" @click="restart(active)">Start {{ active.name }}</button>
         </div>
       </div>
-    </section>
-
-    <footer class="text-center text-xs text-muted mt-12 pb-6">
-      Mobile DevTools · <a class="underline hover:text-ink2" href="https://github.com/battastudio/Mobile-DevTools" target="_blank" rel="noopener">github.com/battastudio/Mobile-DevTools</a> · MIT
-    </footer>
+    </div>
   </div>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
@@ -84,18 +150,33 @@
   <script src="/kit/kit-connectors.js"></script>
   <script>
     const { createApp } = Vue;
+    // Route lives in the hash so the URL stays http://localhost:4090 (#/build-helper, etc.).
+    const parseRoute = () => (location.hash || '').replace(/^#\/?/, '') || 'home';
     createApp({
-      data() { return { tools: [], timer: null }; },
-      computed: { runningCount() { return this.tools.filter((t) => t.running).length; } },
-      async created() { await this.load(); this.timer = setInterval(this.load, 4000); },
+      data() { return { tools: [], route: parseRoute(), opened: {}, timer: null }; },
+      computed: {
+        active() { return this.tools.find((t) => t.id === this.route) || null; },
+        openedTools() { return this.tools.filter((t) => this.opened[t.id]); },
+        runningCount() { return this.tools.filter((t) => t.running).length; },
+      },
+      async created() {
+        await this.load();
+        window.addEventListener('hashchange', () => { this.route = parseRoute(); this.markOpen(); });
+        this.markOpen();
+        this.timer = setInterval(this.load, 4000);
+      },
       methods: {
         icon(name) { return (typeof ICON !== 'undefined' && ICON[name]) || ''; },
+        // Reach sibling tools on the same host the hub is served from (localhost / 127.0.0.1 / LAN IP).
+        frameUrl(t) { return `http://${location.hostname}:${t.port}/`; },
         async load() { try { const d = await fetch('/api/tools').then((r) => r.json()); this.tools = d.tools || []; } catch {} },
+        markOpen() { if (this.route !== 'home' && this.tools.some((t) => t.id === this.route)) this.opened[this.route] = true; },
+        go(id) { location.hash = id === 'home' ? '#/' : '#/' + id; },   // hashchange applies it
         statusClass(t) { return t.running ? 'status ok' : t.present ? 'status run' : 'status off'; },
         statusLabel(t) { return t.running ? 'running' : t.present ? 'starting…' : 'unavailable'; },
-        async restart(t) { await fetch('/api/tools/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id }) }); setTimeout(this.load, 800); if (typeof toast === 'function') toast('Starting ' + t.name + '…', 'info'); },
+        async restart(t) { await fetch('/api/tools/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id }) }); setTimeout(this.load, 900); if (typeof toast === 'function') toast('Starting ' + t.name + '…', 'info'); },
       },
-    }).mount('#app');
+    }).mount('#shell');
   </script>
 </body>
 </html>
