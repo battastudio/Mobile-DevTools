@@ -4,39 +4,39 @@
 // edited in App Setup → Schedule. Scheduled builds are build-only (no distribution) and bypass the
 // interactive guards — nobody's watching to answer a "Build anyway?" prompt.
 // ponytail: build-only + guards bypassed. Add per-schedule destinations if unattended uploads matter.
-const { readConfig, running } = require('./state');
+const { readConfig, writeConfig, running } = require('./state');
 const { detectApp } = require('./project');
 const { handleBuild } = require('./build');
-
-const _fired = new Set(); // "path|env|time|YYYY-MM-DDTHH:MM" — de-dupe within a minute
 
 function runScheduled(projectPath, sched) {
   const app = detectApp(projectPath);
   const buildName = (app.version || '1.0.0').split('+')[0] || '1.0.0';
+  const dest = sched.dest || { onedrive: [], firebase: [], play: [], testflight: [] };
   const body = {
-    path: projectPath, artifacts: sched.artifacts || [],
-    envs: [{ env: sched.env, buildName, buildNumber: '1', autoNum: true, dest: { onedrive: [], firebase: [], play: [], testflight: [] } }],
+    path: projectPath, artifacts: (sched.artifacts && sched.artifacts.length) ? sched.artifacts : ['apk'],
+    envs: [{ env: sched.env, buildName, buildNumber: '1', autoNum: true, dest }],
     allowDirty: true, allowDuplicate: true, confirmProd: true, allowLowVersion: true,
   };
   const res = { writeHead() {}, write() { return true; }, end() {}, on() {} };
-  console.log(`[schedule] ${app.name} ${sched.env} @ ${sched.time} → building (${(sched.artifacts || []).join(',')})`);
+  console.log(`[schedule] ${app.name} ${sched.env} @ ${sched.time} → building (${body.artifacts.join(',')})`);
   handleBuild({ on() {} }, res, body).catch((e) => console.error('[schedule] build error:', e.message));
 }
 
-// Fire the first schedule matching `now`. Skips while a build is running (next tick retries).
+// Fire the first enabled schedule whose day + time match `now`, at most once per day (lastRunYmd is
+// persisted). Skips while a build is running (next tick retries).
 function checkSchedules(now) {
   now = now || new Date();
   if (running.busy) return;
-  const day = now.getDay();
+  const day = now.getDay(), isWeekday = day >= 1 && day <= 5;
   const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const stamp = `${now.toISOString().slice(0, 10)}T${hhmm}`;
-  const apps = readConfig().apps || {};
-  for (const [p, cfg] of Object.entries(apps)) {
-    for (const s of (cfg.schedules || [])) {
-      if (!s.env || !(s.artifacts || []).length || !(s.days || []).includes(day) || s.time !== hhmm) continue;
-      const key = `${p}|${s.env}|${s.time}|${stamp}`;
-      if (_fired.has(key)) continue;
-      _fired.add(key); if (_fired.size > 300) _fired.delete(_fired.values().next().value);
+  const ymd = now.toISOString().slice(0, 10);
+  const cfg = readConfig(), apps = cfg.apps || {};
+  for (const [p, ax] of Object.entries(apps)) {
+    for (const s of (ax.schedules || [])) {
+      if (!s.enabled || !s.env || s.time !== hhmm) continue;
+      if (s.days === 'weekdays' && !isWeekday) continue;
+      if (s.lastRunYmd === ymd) continue;
+      s.lastRunYmd = ymd; writeConfig(cfg);
       runScheduled(p, s); return; // one at a time
     }
   }

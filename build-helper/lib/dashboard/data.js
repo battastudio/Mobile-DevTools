@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const { ARTIFACTS_DIR, BUILDS_JSON, readJson, readConfig, projectsRoot, projectSources, running } = require('../state');
-const { scanAll, appHealth } = require('../project');
+const { scanAll, appHealth, findAppIcon } = require('../project');
 
 // Total + per-project artifact bytes under artifacts/.
 function storageData() {
@@ -34,7 +34,7 @@ function dashboardData() {
       const pb = all.filter((b) => b.path === p.path);
       const last = pb[0] || null;
       const h = appHealth(p.path, { needsConfig: p.needsConfig, firebase: p.firebase });
-      return { ...p, buildCount: pb.length,
+      return { ...p, buildCount: pb.length, hasIcon: !!findAppIcon(p.path),
         favorite: !!(apps[p.path] && apps[p.path].favorite),
         order: apps[p.path] && apps[p.path].order != null ? apps[p.path].order : undefined,
         healthOk: h.envDetected && h.signing && h.packageId,

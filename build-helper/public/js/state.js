@@ -26,6 +26,9 @@ window.ENV_COLOR = { dev: 'sky', demo: 'violet', qa: 'amber', prod: 'emerald' };
 // Views register themselves here so app.js can dispatch by name.
 window.V = {};
 
+// Build-page runtime globals (source names): current project payload + the running-build tracker.
+var CUR = null, BUILDLOG = null, BUILDING = false, LOG = null;
+
 window.verName = (v) => String(v || '').split('+')[0] || '1.0.0';
 window.fmtDur = (ms) => (ms ? Math.round(ms / 1000) + 's' : '');
 window.envColor = (k) => window.ENV_COLOR[k] || 'slate';

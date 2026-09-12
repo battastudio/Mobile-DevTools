@@ -38,6 +38,7 @@ async function collectTasks(projectPath, env) {
 // Build-page pickers: commit-scraped tasks for a project/env, and a Jira issue search to link.
 async function handleTasks(res, path, env) { return sendJson(res, 200, await collectTasks(path, env)); }
 async function jiraSearchFor(res, path, q) { return sendJson(res, 200, await jiraSearch(resolveTracker('jira', path), q)); }
+async function handleJiraMeta(res, path) { return sendJson(res, 200, await jiraMeta(resolveTracker('jira', path))); }
 
 // ---------- Jira write path (create a "Mobile Release" work item) — build-helper specific ----------
 async function handleCreateRelease(req, res, body) {
@@ -86,5 +87,5 @@ async function handleCreateIssue(res, body) {
 
 module.exports = {
   jiraBase, TRACKERS, trackerById, resolveTracker, configuredTrackers, collectTasks,
-  jiraMeta, handleCreateRelease, handleCreateIssue, handleTasks, jiraSearchFor, readStore, saveConnector,
+  jiraMeta, handleCreateRelease, handleCreateIssue, handleTasks, jiraSearchFor, handleJiraMeta, readStore, saveConnector,
 };

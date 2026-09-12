@@ -1,83 +1,56 @@
-// Build Helper frontend — per-app Setup, remaining tabs (registered into the AS registry from
-// app-setup.js): Build defaults, Scheduled builds, per-app Trackers, and client email Groups.
+// Build Helper frontend — App Setup wiring + save (source design). Collects the whole modal into a
+// single /api/app/save (override/firebase/apple/play/settings+schedules/trackers), saves client
+// groups via /api/groups/save, and streams keystore generate/link. Reloads modal + build page.
 'use strict';
 
-const _lines = (s) => String(s || '').split('\n').map((x) => x.trim()).filter(Boolean);
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const _slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
-AS.reg('build', 'Build', {
-  render(d) {
-    const s = d.settings || {};
-    return `<div class="space-y-3">
-      <label class="block"><span class="text-[11px] text-slate-500">Flutter flavor (optional)</span><input id="bs-flavor" class="field text-sm w-full mt-1" value="${esc(s.flavor || '')}" placeholder="production"/></label>
-      <label class="block"><span class="text-[11px] text-slate-500">Extra build args</span><input id="bs-args" class="field text-sm w-full mt-1 font-mono" value="${esc(s.buildArgs || '')}" placeholder="--dart-define=FOO=bar"/></label>
-      <label class="block"><span class="text-[11px] text-slate-500">Pre-build commands (one per line)</span><textarea id="bs-pre" class="field text-xs w-full font-mono h-20 mt-1">${esc((s.preBuild || []).join('\n'))}</textarea></label>
-      <label class="block"><span class="text-[11px] text-slate-500">Post-build commands (one per line — env: BH_APP/BH_VERSION/BH_ENVS)</span><textarea id="bs-post" class="field text-xs w-full font-mono h-20 mt-1">${esc((s.postBuild || []).join('\n'))}</textarea></label>
-      <button id="bs-save" class="btn btn-primary text-sm">Save build defaults</button></div>`;
-  },
-  wire(d) { el('#bs-save').onclick = () => AS.save(d.app.path, { settings: { flavor: el('#bs-flavor').value.trim(), buildArgs: el('#bs-args').value.trim(), preBuild: _lines(el('#bs-pre').value), postBuild: _lines(el('#bs-post').value) } }, 'Build defaults saved'); },
-});
-
-AS.reg('schedule', 'Schedule', {
-  render(d) {
-    const rows = (d.settings?.schedules || []).map((s) => AS.schedRow(d, s)).join('');
-    return `<div class="text-xs text-slate-400 mb-2">Unattended builds run by the scheduler (checks every minute). Times are the server's local time.</div>
-      <div id="sc-rows" class="space-y-2 mb-2">${rows || '<div class="text-xs text-slate-500">No schedules.</div>'}</div>
-      <button id="sc-add" class="btn btn-ghost text-xs mb-3">${ICON.plus}Add schedule</button>
-      <div><button id="sc-save" class="btn btn-primary text-sm">Save schedules</button></div>`;
-  },
-  wire(d, body) {
-    const rowsBox = el('#sc-rows');
-    el('#sc-add').onclick = () => { if (rowsBox.querySelector('.text-slate-500')) rowsBox.innerHTML = ''; rowsBox.insertAdjacentHTML('beforeend', AS.schedRow(d, {})); };
-    body.addEventListener('click', (e) => { if (e.target.closest('.sc-rm')) e.target.closest('.sc-row').remove(); });
-    el('#sc-save').onclick = () => {
-      const schedules = [...body.querySelectorAll('.sc-row')].map((r) => ({
-        env: r.querySelector('.sc-env').value, time: r.querySelector('.sc-time').value || '09:00',
-        days: [...r.querySelectorAll('.sc-day:checked')].map((c) => +c.value),
-        artifacts: [...r.querySelectorAll('.sc-art:checked')].map((c) => c.value),
-      })).filter((s) => s.env && s.artifacts.length && s.days.length);
-      AS.save(d.app.path, { settings: { schedules } }, 'Schedules saved');
-    };
-  },
-});
-AS.schedRow = (d, s) => `<div class="sc-row surface p-2 flex flex-wrap items-center gap-2 text-sm">
-  <select class="field text-xs sc-env">${(d.app.envs || []).map((e) => `<option value="${esc(e.key)}" ${s.env === e.key ? 'selected' : ''}>${esc(e.label || e.key)}</option>`).join('')}</select>
-  <input type="time" class="field text-xs sc-time" value="${esc(s.time || '09:00')}"/>
-  <span class="flex gap-1">${DAYS.map((n, i) => `<label class="text-[10px] flex flex-col items-center"><input type="checkbox" class="sc-day" value="${i}" ${(s.days || []).includes(i) ? 'checked' : ''}/>${n[0]}</label>`).join('')}</span>
-  <span class="flex gap-2">${ARTS.map((a) => `<label class="text-[11px] flex items-center gap-1"><input type="checkbox" class="sc-art" value="${a.id}" ${(s.artifacts || []).includes(a.id) ? 'checked' : ''}/>${a.label}</label>`).join('')}</span>
-  <button class="sc-rm btn btn-ghost text-[11px] text-rose-300 ml-auto">✕</button></div>`;
-
-AS.reg('trackers', 'Trackers', {
-  render(d) {
-    const defs = d.trackerDefs || [], acc = d.trackerAccounts || {};
-    return `<div class="text-xs text-slate-400 mb-2">Per-app tracker credentials override the shared connectors for this project.</div>
-      <div class="space-y-3">${defs.map((t) => `<div class="surface p-3" data-tid="${esc(t.id)}"><div class="text-sm font-semibold mb-1">${esc(t.label)} ${d.globalTrackers?.[t.id] ? '<span class="text-[10px] text-slate-500">(global set)</span>' : ''}</div>
-        <div class="grid grid-cols-2 gap-2">${(t.fields || []).map((f) => `<input class="field text-sm tk-f" data-f="${esc(f[0])}" placeholder="${esc(f[0])}" value="${esc((acc[t.id] || {})[f[0]] || '')}"/>`).join('')}</div></div>`).join('')}</div>
-      <div class="mt-3"><button id="tk-save" class="btn btn-primary text-sm">Save trackers</button></div>`;
-  },
-  wire(d, body) {
-    el('#tk-save').onclick = () => {
-      const trackers = {};
-      body.querySelectorAll('[data-tid]').forEach((box) => { const o = {}; box.querySelectorAll('.tk-f').forEach((i) => o[i.dataset.f] = i.value.trim()); trackers[box.dataset.tid] = o; });
-      AS.save(d.app.path, { trackers }, 'Trackers saved');
-    };
-  },
-});
-
-AS.reg('groups', 'Groups', {
-  render() { return '<div class="text-slate-500 text-sm">Loading groups…</div>'; },
-  async wire(d, body) {
-    const g = await API.appGroups(d.app.repo || '');
-    const row = (x) => `<div class="gp-row flex items-center gap-2 mb-1"><input class="field text-sm w-32 gp-name" value="${esc(x.name || '')}" placeholder="Group"/><input class="field text-sm flex-1 gp-em" value="${esc((x.emails || []).join(', '))}" placeholder="a@x.com, b@y.com"/><button class="gp-rm btn btn-ghost text-[11px] text-rose-300">✕</button></div>`;
-    body.innerHTML = `<div class="text-xs text-slate-400 mb-2">Client email groups for <b>${esc(d.app.repo || d.app.name)}</b> (used when emailing a build).</div>
-      <div id="gp-rows">${(g.own || []).map(row).join('') || row({})}</div>
-      <button id="gp-add" class="btn btn-ghost text-xs my-2">${ICON.plus}Add group</button>
-      <div>${g.global && g.global.length ? `<div class="text-[11px] text-slate-500 mb-2">Global groups (all apps): ${g.global.map((x) => esc(x.name)).join(', ')}</div>` : ''}<button id="gp-save" class="btn btn-primary text-sm">Save groups</button></div>`;
-    el('#gp-add').onclick = () => el('#gp-rows').insertAdjacentHTML('beforeend', row({}));
-    body.addEventListener('click', (e) => { if (e.target.closest('.gp-rm')) e.target.closest('.gp-row').remove(); });
-    el('#gp-save').onclick = () => {
-      const groups = [...body.querySelectorAll('.gp-row')].map((r) => ({ name: r.querySelector('.gp-name').value.trim() || 'Group', emails: r.querySelector('.gp-em').value.split(/[\s,;]+/).filter(Boolean) })).filter((x) => x.emails.length);
-      API.post('/api/groups/save', { repo: d.app.repo || '', groups }).then((r) => toast(r.ok ? 'Groups saved' : (r.error || 'Failed'), r.ok ? 'ok' : 'err'));
-    };
-  },
-});
+function wireAppSetup(d, a, pth) {
+  const wireEnvDel = () => document.querySelectorAll('.el-del').forEach((b) => b.onclick = () => b.closest('.envrow').remove());
+  wireEnvDel();
+  el('#envadd').onclick = () => { el('#envrows').insertAdjacentHTML('beforeend', asEnvRow({ color: 'sky' })); wireEnvDel(); };
+  const wireCmdDel = () => document.querySelectorAll('.cmd-del').forEach((b) => b.onclick = () => b.closest('.flex').remove());
+  wireCmdDel();
+  if (el('#preadd')) el('#preadd').onclick = () => { el('#prebox').insertAdjacentHTML('beforeend', asCmdRow('pre-cmd', '')); wireCmdDel(); };
+  if (el('#postadd')) el('#postadd').onclick = () => { el('#postbox').insertAdjacentHTML('beforeend', asCmdRow('post-cmd', '')); wireCmdDel(); };
+  const wireSchedDel = () => document.querySelectorAll('.sc-del').forEach((b) => b.onclick = () => b.closest('.schedrow').remove());
+  wireSchedDel();
+  if (el('#schedadd')) el('#schedadd').onclick = () => { const box = el('#schedbox'); const n = box.querySelector('.nosched'); if (n) n.remove(); box.insertAdjacentHTML('beforeend', asSchedRow(a, {})); wireSchedDel(); };
+  const collectEnvs = () => { const out = [], used = new Set(); document.querySelectorAll('.envrow').forEach((row) => { const label = row.querySelector('.el-label').value.trim(), mode = row.querySelector('.el-mode').value.trim(); if (!label || !mode) return; let key = row.dataset.key || _slug(label) || 'env'; while (used.has(key)) key += '_2'; used.add(key); out.push({ key, label, mode, color: row.querySelector('.el-color').value, prod: row.querySelector('.el-prod').checked }); }); return out; };
+  let appleClear = false, playClear = false;
+  if (el('#ap-aclear')) el('#ap-aclear').onclick = () => { appleClear = true; el('#ap-akey').value = ''; el('#ap-aiss').value = ''; el('#ap-ap8').value = ''; toast('Apple account will be removed on Save', 'info'); };
+  if (el('#pl-aclear')) el('#pl-aclear').onclick = () => { playClear = true; el('#pl-ajson').value = ''; toast('Play account will be removed on Save', 'info'); };
+  // Client groups (team-shared store).
+  const grpRepo = a.repo || a.name;
+  const grpRow = (g = {}) => `<div class="grouprow rounded-lg border border-edge p-3"><div class="flex items-center gap-2 mb-1.5"><input class="g-name field text-sm flex-1" placeholder="Group name (e.g. Beta clients)" value="${esc(g.name || '')}"/><button type="button" class="g-del text-rose-400 text-xs shrink-0">Remove</button></div><textarea class="g-emails field w-full text-xs font-mono" rows="2" placeholder="client1@x.com, client2@x.com">${esc((g.emails || []).join(', '))}</textarea></div>`;
+  const wireGrpDel = () => document.querySelectorAll('.g-del').forEach((b) => b.onclick = () => b.closest('.grouprow').remove());
+  const fillBox = (sel, rows) => { const box = el(sel); if (!box) return; box.innerHTML = (rows && rows.length) ? rows.map(grpRow).join('') : '<div class="text-xs text-slate-500 nogroups">None yet — add one.</div>'; };
+  fetch('/api/groups?repo=' + encodeURIComponent(grpRepo)).then((r) => r.json()).then((r) => { fillBox('#gglobalbox', r.global); fillBox('#groupsbox', r.own); wireGrpDel(); }).catch(() => { fillBox('#gglobalbox', []); fillBox('#groupsbox', []); });
+  const addRow = (sel) => { const box = el(sel); const ng = box.querySelector('.nogroups'); if (ng) ng.remove(); box.insertAdjacentHTML('beforeend', grpRow()); wireGrpDel(); };
+  if (el('#gaddgrp')) el('#gaddgrp').onclick = () => addRow('#groupsbox');
+  if (el('#gaddglobal')) el('#gaddglobal').onclick = () => addRow('#gglobalbox');
+  const collectGroups = (sel) => [...el(sel).querySelectorAll('.grouprow')].map((row) => ({ name: row.querySelector('.g-name').value.trim(), emails: row.querySelector('.g-emails').value.split(/[\s,;]+/).map((e) => e.trim()).filter(Boolean) })).filter((g) => g.name || g.emails.length);
+  if (el('#gsave')) el('#gsave').onclick = async () => { const g1 = await postJson('/api/groups/save', { repo: '*', groups: collectGroups('#gglobalbox') }); const g2 = await postJson('/api/groups/save', { repo: grpRepo, groups: collectGroups('#groupsbox') }); (g1.ok && g2.ok) ? toast('Client groups saved (shared with team)', 'ok') : toast(g1.error || g2.error || 'Save failed', 'err'); };
+  const trackerDirty = new Set(), trackerClear = new Set();
+  document.querySelectorAll('[id^="astr-"]').forEach((inp) => inp.addEventListener('input', () => { const id = inp.id.split('-')[1]; trackerDirty.add(id); trackerClear.delete(id); }));
+  document.querySelectorAll('.astr-clear').forEach((b) => b.onclick = () => { const id = b.dataset.id; trackerClear.add(id); trackerDirty.delete(id); ((d.trackerDefs || []).find((t) => t.id === id)?.fields || []).forEach(([n]) => { const e = el(`#astr-${id}-${n}`); if (e) e.value = ''; }); toast('Will use global on Save', 'info'); });
+  const reloadAppSetup = async () => { const sc = el('#modalbody')?.scrollTop || 0; try { CUR = await API.project(pth); if (CUR && CUR.app && BH.view === 'project') renderProject(); } catch {} await showAppSetup(pth); const mb = el('#modalbody'); if (mb) mb.scrollTop = sc; };
+  el('#assave').onclick = async () => {
+    const override = { envs: collectEnvs() }; const f = el('#ovfile').value.trim(), cn = el('#ovconst').value.trim();
+    if (f) override.envFile = f; if (cn) override.constName = cn;
+    const body = { path: pth, override, firebaseApp: { appId: el('#asfbid').value.trim(), groups: el('#asfbgroups').value.trim() },
+      apple: appleClear ? { clear: true } : { keyId: el('#ap-akey').value.trim(), issuerId: el('#ap-aiss').value.trim(), p8: el('#ap-ap8').value.trim() },
+      play: playClear ? { clear: true } : { serviceAccountJson: el('#pl-ajson').value.trim(), defaultTrack: el('#pl-atrack').value },
+      settings: { defaultTrack: el('#astrack').value, defaultArtifacts: [...document.querySelectorAll('.asart:checked')].map((x) => x.value), preBuild: [...document.querySelectorAll('.pre-cmd')].map((i) => i.value.trim()).filter(Boolean), postBuild: [...document.querySelectorAll('.post-cmd')].map((i) => i.value.trim()).filter(Boolean), buildArgs: el('#asbuildargs')?.value.trim() || '', flavor: el('#asflavor')?.value.trim() || '',
+        schedules: [...document.querySelectorAll('.schedrow')].map((row) => { const arts = [...row.querySelectorAll('.sc-art:checked')].map((x) => x.value); const dest = { onedrive: [], firebase: [], play: [], testflight: [] }; [...row.querySelectorAll('.sc-dst:checked')].forEach((x) => dest[x.value] = (arts.length ? arts : ['apk']).slice()); return { id: row.dataset.id || ('s' + Math.round(performance.now()).toString(36)), enabled: row.querySelector('.sc-en').checked, env: row.querySelector('.sc-env').value, time: row.querySelector('.sc-time').value, days: row.querySelector('.sc-days').value, artifacts: arts.length ? arts : ['apk'], dest, autoNum: true, lastRunYmd: row.dataset.last || '' }; }).filter((s) => s.env) } };
+    const trackers = {};
+    (d.trackerDefs || []).forEach((t) => { if (trackerClear.has(t.id)) trackers[t.id] = { clear: true }; else if (trackerDirty.has(t.id)) { const o = {}; t.fields.forEach(([n]) => o[n] = (el(`#astr-${t.id}-${n}`)?.value || '').trim()); trackers[t.id] = o; } });
+    if (Object.keys(trackers).length) body.trackers = trackers;
+    const r = await postJson('/api/app/save', body);
+    if (!r.ok) { toast(r.error || 'Save failed', 'err'); return; }
+    toast('App setup saved', 'ok'); await reloadAppSetup();
+  };
+  const runSign = (url, extra) => { const box = el('#sglog'); box.classList.remove('hidden'); streamSSEInto(url, { path: pth, ...extra }, box, () => reloadAppSetup()); };
+  el('#sggen').onclick = () => { const pw = el('#sgpw').value; if (pw.length < 6) { toast('Password ≥6 chars', 'warn'); return; } runSign('/api/signing/generate', { password: pw, alias: el('#sgalias').value.trim() || 'upload' }); };
+  el('#sglinkbtn').onclick = () => { const sf = el('#sglink').value.trim(); if (!sf) { toast('Enter a .jks path', 'warn'); return; } const pw = prompt('Keystore password?') || ''; const al = prompt('Key alias?', 'upload') || 'upload'; runSign('/api/signing/link', { storeFile: sf, storePassword: pw, keyPassword: pw, keyAlias: al }); };
+}

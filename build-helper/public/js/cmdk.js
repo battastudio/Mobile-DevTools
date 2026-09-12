@@ -2,7 +2,7 @@
 // #cmdk), a fuzzy-ish substring filter over nav actions + every scanned project, keyboard-driven.
 'use strict';
 
-let _sel = 0, _items = [];
+let _ckSel = 0, _items = [];
 
 function _overlay() {
   let o = el('#bh-cmdk');
@@ -33,7 +33,7 @@ function _catalog() {
 function _render(q) {
   const s = (q || '').trim().toLowerCase();
   _items = _catalog().filter((it) => !s || it.label.toLowerCase().includes(s));
-  _sel = 0;
+  _ckSel = 0;
   const list = el('#cmdk-list');
   list.innerHTML = _items.length ? _items.map((it, i) => `<button data-i="${i}" class="cmdk-row w-full text-left px-4 py-2 flex items-center gap-2 text-sm ${i === 0 ? 'bg-white/[.05]' : ''}">
     <span class="flex-1 truncate">${esc(it.label)}</span><span class="text-[10px] uppercase tracking-wider text-slate-500">${esc(it.hint)}</span></button>`).join('')
@@ -42,8 +42,8 @@ function _render(q) {
 }
 
 function _highlight(i) {
-  _sel = Math.max(0, Math.min(_items.length - 1, i));
-  el('#cmdk-list').querySelectorAll('.cmdk-row').forEach((r, j) => r.classList.toggle('bg-white/[.05]', j === _sel));
+  _ckSel = Math.max(0, Math.min(_items.length - 1, i));
+  el('#cmdk-list').querySelectorAll('.cmdk-row').forEach((r, j) => r.classList.toggle('bg-white/[.05]', j === _ckSel));
 }
 function _run(i) { const it = _items[i]; if (!it) return; CMDK.close(); it.run(); }
 
@@ -53,9 +53,9 @@ window.CMDK = {
     const inp = el('#cmdk-in'); inp.value = ''; _render(''); inp.focus();
     inp.oninput = () => _render(inp.value);
     inp.onkeydown = (e) => {
-      if (e.key === 'ArrowDown') { e.preventDefault(); _highlight(_sel + 1); el('#cmdk-list').children[_sel]?.scrollIntoView({ block: 'nearest' }); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); _highlight(_sel - 1); el('#cmdk-list').children[_sel]?.scrollIntoView({ block: 'nearest' }); }
-      else if (e.key === 'Enter') { e.preventDefault(); _run(_sel); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); _highlight(_ckSel + 1); el('#cmdk-list').children[_ckSel]?.scrollIntoView({ block: 'nearest' }); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); _highlight(_ckSel - 1); el('#cmdk-list').children[_ckSel]?.scrollIntoView({ block: 'nearest' }); }
+      else if (e.key === 'Enter') { e.preventDefault(); _run(_ckSel); }
       else if (e.key === 'Escape') this.close();
     };
   },

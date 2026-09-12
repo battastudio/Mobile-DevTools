@@ -1,67 +1,72 @@
-// Build Helper frontend — the project-health table (window.HT). Sortable columns, drag-to-reorder
-// (persisted via /api/app/order, only while unsorted), favorite toggle, density toggle, per-row
-// security grade, and a "Set up" / "Open" call-to-action. Renders into a container + wires events;
-// data ops call back into the dashboard, which re-fetches and re-renders.
+// Build Helper frontend — the Project-health table body (source design). Renders rows into
+// #healthbody: drag handle · ★ favorite · health dot · app icon (/api/icon, monogram fallback) ·
+// name · version · env · last build · status · builds · security grade · Set up / Open. Sortable,
+// drag-to-reorder (when unsorted/unfiltered), density-aware. Reads the DASH state from dashboard.js.
 'use strict';
 
-const _gradeCls = (l) => ({ A: 'good', B: 'brand', C: 'warn', D: 'crit', F: 'crit' }[l] || 'muted');
-function _gradeBadge(g) {
-  if (!g || !g.letter) return '<span class="text-[11px] text-slate-600">—</span>';
-  return `<span class="bh-dot" style="background:var(--${_gradeCls(g.letter)})" title="score ${g.score}"></span> <span class="text-[11px] font-mono">${esc(g.letter)}</span>`;
-}
-const _sorters = {
-  name: (a, b) => a.name.localeCompare(b.name),
-  builds: (a, b) => (b.buildCount || 0) - (a.buildCount || 0),
-  last: (a, b) => (b.lastBuild ? +new Date(b.lastBuild.time) : 0) - (a.lastBuild ? +new Date(a.lastBuild.time) : 0),
-  grade: (a, b) => ((b.grade ? b.grade.score : -1) - (a.grade ? a.grade.score : -1)),
+const DEN = {
+  compact: { pad: 'py-1', icon: 'h-4 w-4', av: 'text-[7px]', text: 'text-[11px]' },
+  comfortable: { pad: 'py-1.5', icon: 'h-5 w-5', av: 'text-[8px]', text: 'text-xs' },
+  large: { pad: 'py-2.5', icon: 'h-8 w-8', av: 'text-xs', text: 'text-sm' },
 };
+let DRAG = null;
 
-window.HT = {
-  density() { return localStorage.getItem('bh-density') || 'comfortable'; },
-  render(container, projects, h) {
-    const sort = BH.tableSort || '';
-    const list = sort ? [...projects].sort(_sorters[sort]) : projects; // server order = favorites+order
-    const dense = this.density() === 'compact';
-    const pad = dense ? 'py-1' : 'py-2';
-    const th = (key, label, extra) => `<th class="text-left text-[11px] uppercase tracking-wider text-slate-500 font-medium ${key ? 'cursor-pointer select-none' : ''} ${extra || ''}" ${key ? `data-sort="${key}"` : ''}>${label}${sort === key ? ' ↓' : ''}</th>`;
-    container.innerHTML = list.length ? `<div class="surface overflow-hidden"><table class="w-full text-sm"><thead><tr class="border-b border-edge/60 px-3">
-      <th class="w-6"></th>${th('name', 'App')}${th('', 'Envs')}${th('', 'Version')}${th('last', 'Last build')}${th('builds', 'Builds')}${th('grade', 'Sec')}<th class="w-8"></th><th class="w-8"></th></tr></thead>
-      <tbody>${list.map((p) => this.row(p, pad, !sort)).join('')}</tbody></table></div>`
-      : `<div class="surface p-6 text-sm text-slate-400">${projects.length ? 'No projects match your search.' : 'No Flutter apps found. Add a scan root or pin a project in <b>Project sources</b> above.'}</div>`;
-    this.wire(container, list, h, !sort);
-  },
-  row(p, pad, canDrag) {
-    const lb = p.lastBuild, health = p.needsConfig ? 'warn' : (p.healthOk ? 'ok' : 'warn');
-    const last = lb ? `<span class="${lb.buildOk ? 'text-emerald-300' : 'text-rose-300'}">${lb.buildOk ? '✓' : '✗'} v${esc(verName(lb.version))}</span> <span class="text-slate-500">· ${esc(lb.env || '')} · ${relTime(lb.time)}</span>` : '<span class="text-slate-500">—</span>';
-    const cta = p.needsConfig ? `<button class="btn btn-secondary text-[11px] !py-0.5 !px-2" data-setup="${esc(p.path)}">Set up</button>` : `<button class="btn btn-ghost text-[11px] !py-0.5 !px-2" data-open="${esc(p.path)}">Open</button>`;
-    return `<tr class="border-b border-edge/40 hover:bg-white/[.02]" data-path="${esc(p.path)}" ${canDrag ? 'draggable="true"' : ''}>
-      <td class="${pad} pl-3">${C.dot(health)}</td>
-      <td class="${pad}"><button class="font-display font-semibold text-left hover:text-brand" data-${p.needsConfig ? 'setup' : 'open'}="${esc(p.path)}">${esc(p.name)}</button></td>
-      <td class="${pad}">${C.envChips(p)}</td>
-      <td class="${pad} font-mono text-[11px] text-slate-400">v${esc(verName(p.version))}</td>
-      <td class="${pad} text-[12px]">${last}</td>
-      <td class="${pad} text-[12px] text-slate-400">${p.buildCount || 0}</td>
-      <td class="${pad}">${_gradeBadge(p.grade)}</td>
-      <td class="${pad} text-center"><button data-fav="${esc(p.path)}" class="text-sm ${p.favorite ? 'text-amber-300' : 'text-slate-600 hover:text-amber-300'}" title="Favorite">★</button></td>
-      <td class="${pad} pr-3 text-center"><button class="text-slate-500 hover:text-slate-200 [&>svg]:w-3.5 [&>svg]:h-3.5" data-reveal="${esc(p.path)}" title="Reveal in Finder">${ICON.folder}</button></td>
-      ${cta ? `<td class="${pad} pr-3">${cta}</td>` : ''}</tr>`;
-  },
-  wire(container, list, h, canDrag) {
-    container.querySelectorAll('[data-sort]').forEach((t) => t.onclick = () => { BH.tableSort = BH.tableSort === t.dataset.sort ? '' : t.dataset.sort; this.render(container, list, h); });
-    container.querySelectorAll('[data-open]').forEach((b) => b.onclick = () => h.open(b.dataset.open));
-    container.querySelectorAll('[data-setup]').forEach((b) => b.onclick = () => h.setup(b.dataset.setup));
-    container.querySelectorAll('[data-reveal]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); h.reveal(b.dataset.reveal); });
-    container.querySelectorAll('[data-fav]').forEach((b) => b.onclick = () => h.favorite(b.dataset.fav, !list.find((p) => p.path === b.dataset.fav)?.favorite));
-    if (canDrag) this.wireDrag(container, h);
-  },
-  // HTML5 drag-reorder: on drop, emit the new path order for /api/app/order.
-  wireDrag(container, h) {
-    let from = null;
-    container.querySelectorAll('tr[draggable]').forEach((tr) => {
-      tr.ondragstart = () => { from = tr; tr.style.opacity = '.4'; };
-      tr.ondragend = () => { tr.style.opacity = ''; };
-      tr.ondragover = (e) => e.preventDefault();
-      tr.ondrop = (e) => { e.preventDefault(); if (!from || from === tr) return; const rows = [...container.querySelectorAll('tr[draggable]')]; const fi = rows.indexOf(from), ti = rows.indexOf(tr); tr.parentNode.insertBefore(from, fi < ti ? tr.nextSibling : tr); h.reorder([...container.querySelectorAll('tr[draggable]')].map((r) => r.dataset.path)); };
-    });
-  },
-};
+function renderHealth() {
+  const body = el('#healthbody'); if (!body || !DASH.data) return;
+  let rows = DASH.data.projects.slice();
+  if (DASH.search) rows = rows.filter((p) => p.name.toLowerCase().includes(DASH.search));
+  if (DASH.favOnly) rows = rows.filter((p) => p.favorite);
+  const { key, dir } = DASH.sort;
+  rows.sort((a, b) => {
+    let av, bv;
+    if (key === 'last') { av = a.lastBuild ? new Date(a.lastBuild.time) : 0; bv = b.lastBuild ? new Date(b.lastBuild.time) : 0; }
+    else if (key === 'buildCount') { av = a.buildCount; bv = b.buildCount; }
+    else if (key === 'env') { av = a.lastBuild?.env || ''; bv = b.lastBuild?.env || ''; }
+    else if (key === 'version') { av = a.version || ''; bv = b.version || ''; }
+    else if (key === 'name') { av = a.name; bv = b.name; }
+    else return (b.favorite - a.favorite) || 0;
+    return (av < bv ? -1 : av > bv ? 1 : 0) * dir;
+  });
+  const D = DEN[DASH.density] || DEN.comfortable;
+  const dragOn = key === '' && !DASH.search;
+  const tbl = document.querySelector('table.health'); if (tbl) tbl.className = 'health w-full ' + D.text;
+  const secByPath = Object.fromEntries(((DASH.sec && DASH.sec.apps) || []).map((a) => [a.path, a.grade]));
+  body.innerHTML = rows.map((p) => {
+    const lb = p.lastBuild, c = ENV_COLOR[lb?.env] || 'slate';
+    const ic = p.hasIcon ? `<img src="/api/icon?path=${encodeURIComponent(p.path)}" class="${D.icon} rounded object-cover"/>` : `<div class="${D.icon} rounded bg-slate-700 grid place-items-center ${D.av} font-bold">${esc(p.name.slice(0, 2).toUpperCase())}</div>`;
+    const status = lb ? (lb.buildOk ? '<span class="status ok">ok</span>' : '<span class="status fail">failed</span>') : '<span class="text-slate-500">—</span>';
+    const hdot = `<span class="inline-block h-2 w-2 rounded-full ${p.healthOk ? 'bg-emerald-400' : 'bg-rose-400'}" title="${p.healthOk ? 'release-ready' : 'needs setup (env/signing)'}"></span>`;
+    const cta = p.needsConfig || !p.healthOk ? `<button class="setup text-amber-300 hover:text-amber-200 font-medium inline-flex items-center gap-1" data-p="${esc(p.path)}"><span style="display:inline-flex;width:14px;height:14px">${ICON.gear}</span>Set up</button>` : '<span class="font-medium" style="color:var(--brand2)">Open ▸</span>';
+    const handle = dragOn ? '<span class="draghandle cursor-move text-slate-400 select-none mr-1" title="Drag to reorder">⠿</span>' : '';
+    const g = secByPath[p.path];
+    const gcell = g ? `<span class="secgrade inline-grid place-items-center h-6 w-6 rounded-md bg-${_gcol(g.letter)}-500/15 text-${_gcol(g.letter)}-300 font-display font-bold text-xs cursor-pointer" data-p="${esc(p.path)}" title="${g.score}/100 · ${g.counts.fail || 0} failing · click to view">${g.letter}</span>` : `<button class="secgrade text-slate-500 hover:text-slate-300 text-[11px] underline decoration-dotted" data-p="${esc(p.path)}" title="Not scanned — open Security to scan">scan</button>`;
+    return `<tr class="border-t border-edge/50" data-open="${esc(p.path)}"${dragOn ? ' draggable="true"' : ''}>
+      <td class="${D.pad} pr-2 whitespace-nowrap">${handle}<button class="fav ${p.favorite ? 'text-amber-300' : 'text-slate-400'}" data-p="${esc(p.path)}" data-f="${p.favorite ? 0 : 1}">★</button></td>
+      <td class="${D.pad} pr-3 cursor-pointer"><div class="flex items-center gap-2">${hdot}${ic}<span class="font-medium">${esc(p.name)}</span></div></td>
+      <td class="${D.pad} pr-3 font-mono tnum text-slate-300 cursor-pointer">${esc(p.version || '—')}</td>
+      <td class="${D.pad} pr-3 cursor-pointer">${lb ? badge(lb.env.toUpperCase(), c) : '<span class="text-slate-400">—</span>'}</td>
+      <td class="${D.pad} pr-3 text-slate-400 cursor-pointer">${lb ? relTime(lb.time) : 'never'}</td>
+      <td class="${D.pad} pr-3 cursor-pointer">${status}</td>
+      <td class="${D.pad} pr-3 tnum text-slate-300 cursor-pointer">${p.buildCount}</td>
+      <td class="${D.pad} pr-3">${gcell}</td>
+      <td class="${D.pad} text-right">${cta}</td></tr>`;
+  }).join('') || '<tr><td colspan="9" class="py-3 text-slate-500">No projects.</td></tr>';
+  body.querySelectorAll('td.cursor-pointer').forEach((td) => td.onclick = () => openProject(td.closest('[data-open]').dataset.open));
+  body.querySelectorAll('.secgrade').forEach((g) => g.onclick = (e) => { e.stopPropagation(); showSecurity(g.dataset.p); });
+  body.querySelectorAll('.setup').forEach((b) => b.onclick = (e) => { e.stopPropagation(); showAppSetup(b.dataset.p); });
+  body.querySelectorAll('.fav').forEach((b) => b.onclick = async (e) => { e.stopPropagation(); await postJson('/api/app/favorite', { path: b.dataset.p, favorite: b.dataset.f === '1' }); refreshDashboard(); });
+  if (dragOn) body.querySelectorAll('tr[data-open]').forEach((tr) => {
+    tr.ondragstart = (e) => { DRAG = tr.dataset.open; e.dataTransfer.effectAllowed = 'move'; tr.classList.add('opacity-50'); };
+    tr.ondragend = () => { DRAG = null; tr.classList.remove('opacity-50'); };
+    tr.ondragover = (e) => e.preventDefault();
+    tr.ondrop = (e) => { e.preventDefault(); reorderTo(DRAG, tr.dataset.open); };
+  });
+}
+
+function reorderTo(fromPath, toPath) {
+  if (!fromPath || fromPath === toPath) return;
+  const ps = DASH.data.projects; const fi = ps.findIndex((p) => p.path === fromPath), ti = ps.findIndex((p) => p.path === toPath);
+  if (fi < 0 || ti < 0) return;
+  const [m] = ps.splice(fi, 1); ps.splice(ti, 0, m);
+  renderHealth(); postJson('/api/app/order', { paths: ps.map((p) => p.path) });
+}

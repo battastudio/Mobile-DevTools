@@ -70,6 +70,11 @@ async function openUpdate() {
 
 async function boot() {
   try { const m = await API.manifest(); if (m.name) BH.toolName = m.name; } catch {}
+  const params = new URLSearchParams(location.search);
+  const as = params.get('appsetup');
+  if (as) { await V.dashboard(); return showAppSetup(as); }
+  const open = params.get('open');
+  if (open) return V.project(open);
   await V.dashboard();
 }
 

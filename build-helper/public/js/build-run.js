@@ -1,84 +1,119 @@
-// Build Helper frontend — running a build. Fires /api/build, then drives the UI by POLLING
-// /api/build/log (the server buffers every event in running.log) so the live log survives navigating
-// away and back. Handles inline guard prompts, per-env summaries, and the build-history list.
+// Build Helper frontend — the build runner (source design). POSTs /api/build then drives the UI by
+// POLLING /api/build/log (server buffers every event) so the live log survives navigation. Handles
+// the step/line log, inline guard prompts, per-env build summary, and Stop.
 'use strict';
 
-let _pollTimer = null, _lastSeq = 0;
-
-function writeLine(box, s, cls) {
-  if (!box) return;
-  const d = document.createElement('div'); if (cls) d.className = cls;
-  d.textContent = window.stripAnsi ? stripAnsi(s) : s;
-  box.appendChild(d); box.scrollTop = box.scrollHeight;
+async function syncStatus() {
+  let st; try { st = await fetch('/api/build/status').then((r) => r.json()); } catch { return null; }
+  BUILDING = !!st.busy; return st;
 }
 
-function doBuild(allow) {
-  const req = BF.collectBuild(allow);
-  if (!req.envs.length) return toast('Pick at least one environment', 'warn');
-  if (!req.artifacts.length) return toast('Pick at least one artifact (APK/AAB/IPA)', 'warn');
-  ['#bh-term', '#bh-guard', '#bh-summary'].forEach((s) => { const b = el(s); if (b) b.innerHTML = ''; });
-  const btn = el('#bh-build'); if (btn) btn.disabled = true;
-  _lastSeq = 0;
-  // Fire-and-forget: the server keeps building even if this response is never read; the poller drives UI.
-  fetch('/api/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) }).catch(() => {});
-  setTimeout(() => pollLog(true), 250);
+function logSetup() {
+  const box = el('#log'); box.innerHTML = ''; let curBody = null;
+  const auto = () => { if (el('#autoscroll') && el('#autoscroll').checked) box.scrollTop = box.scrollHeight; };
+  return {
+    step(text, ms) { const d = $(`<details class="step mt-1" open><summary class="text-emerald-300 font-semibold">▸ ${esc(text)} <span class="text-slate-500 font-normal">${ms != null ? '· ' + (ms / 1000).toFixed(1) + 's' : ''}</span></summary><div class="pl-3 border-l border-edge mt-1"></div></details>`); box.appendChild(d); curBody = d.querySelector('div'); auto(); },
+    line(s, cls = '') { const line = stripAnsi(s); const d = document.createElement('div'); if (cls) d.className = cls; else if (/error|exception|✖|failed/i.test(line)) d.className = 'text-rose-400'; else if (/warning|⚠/i.test(line)) d.className = 'text-amber-300'; d.textContent = line; (curBody || box).appendChild(d); auto(); },
+  };
 }
 
-async function pollLog(reset) {
-  if (BH.view !== 'project') { clearTimeout(_pollTimer); return; } // stop when we leave the build screen
-  if (reset) _lastSeq = 0;
-  const r = await API.buildLog(_lastSeq).catch(() => null);
-  const term = el('#bh-term');
-  if (r && term && (!r.path || r.path === BH.sel)) for (const e of (r.events || [])) { _lastSeq = Math.max(_lastSeq, e.seq); handleEvent(e.event, e.data); }
-  const btn = el('#bh-build'); if (btn) btn.disabled = !!(r && r.busy);
-  if (r && r.busy) _pollTimer = setTimeout(() => pollLog(false), 1200);
+async function tryBuild() {
+  const st = await syncStatus();
+  if (st && st.busy) { toast(`Building ${st.info?.project || ''} ${st.info?.env || ''} — press Stop to cancel`, 'warn'); return; }
+  const p = collectPayload(); if (!p) return;
+  const bs = el('#buildsummary'); if (bs) bs.innerHTML = '';
+  runOne(p);
 }
 
-function handleEvent(event, data) {
-  const term = el('#bh-term');
-  if (event === 'log') writeLine(term, data.line);
-  else if (event === 'step') writeLine(term, '▸ ' + data.text, 'text-emerald-300 font-semibold mt-1');
-  else if (event === 'error') data.kind ? renderGuard(data) : writeLine(term, '✖ ' + data.message, 'text-rose-400 font-semibold');
-  else if (event === 'done-env') renderEnvSummary(data.record);
-  else if (event === 'done') { writeLine(term, `✔ done — ${data.built || 0} built, ${data.failed || 0} failed`, 'text-emerald-400 font-semibold'); API.builds(BH.sel).then((x) => renderBuilds(x.builds || [])); }
+function setBuildBtn(running) {
+  const btn = el('#build'); if (!btn) return;
+  if (running) { btn.disabled = false; btn.textContent = '■ Stop'; btn.classList.remove('btn-primary'); btn.classList.add('bg-rose-500', 'text-white'); btn.onclick = () => { btn.disabled = true; btn.textContent = 'Stopping…'; fetch('/api/build/stop', { method: 'POST' }); }; }
+  else { btn.disabled = false; btn.innerHTML = (window.ICON ? ICON.rocket : '') + 'Build'; btn.classList.remove('bg-rose-500', 'text-white'); btn.classList.add('btn-primary'); btn.onclick = tryBuild; }
 }
 
-// Inline guard prompt: dirty / duplicate / prod-confirm / low-version → override + rebuild.
-function renderGuard(g) {
-  const box = el('#bh-guard'); if (!box) return;
-  const flag = { dirty: 'allowDirty', duplicate: 'allowDuplicate', confirm: 'confirmProd', lowVersion: 'allowLowVersion' }[g.kind];
-  const use = g.kind === 'lowVersion' ? `<button id="g-use" class="btn btn-primary text-xs">Use ${esc(g.suggested || '')}</button>` : '';
-  box.innerHTML = `<div class="surface p-3" style="border:1px solid color-mix(in srgb,var(--warn) 45%,var(--edge))">
-    <div class="text-[12px] whitespace-pre-wrap mb-2" style="color:var(--warn)">${esc(g.message)}</div>
-    <div class="flex gap-2">${use}<button id="g-anyway" class="btn btn-secondary text-xs">${g.kind === 'confirm' ? 'Publish anyway' : 'Build anyway'}</button><button id="g-cancel" class="btn btn-ghost text-xs">Cancel</button></div></div>`;
-  el('#g-anyway').onclick = () => { box.innerHTML = ''; doBuild({ [flag]: true }); };
-  el('#g-cancel').onclick = () => { box.innerHTML = ''; };
-  const u = el('#g-use'); if (u) u.onclick = () => { (g.fixes || []).forEach((f) => { const inp = _body().querySelector(`.bh-ver[data-env="${f.env}"]`); if (inp) inp.value = f.suggested; }); box.innerHTML = ''; doBuild({ allowLowVersion: true }); };
+function applyBuildEvent(t, d) {
+  if (t === 'log') LOG && LOG.line(d.line);
+  else if (t === 'step') LOG && LOG.step(d.text, d.elapsedMs);
+  else if (t === 'done-env') { if (d.record && d.record.buildOk === false) LOG && LOG.line('✖ ' + d.env + ' failed', 'text-rose-400 font-semibold'); else { LOG && LOG.line('✔ ' + d.env + ' done', 'text-emerald-400 font-semibold'); if (d.record && BUILDLOG) BUILDLOG.records.push(d.record); } }
+  else if (t === 'done') { if (BUILDLOG) BUILDLOG.gotDone = { built: d.built || 0, failed: d.failed || 0 }; }
+  else if (t === 'error') handleBuildError(d, BUILDLOG && BUILDLOG.payload);
 }
 
-// Per-env result card appended under the log as each env finishes.
-function renderEnvSummary(r) {
-  const box = el('#bh-summary'); if (!box || !r) return;
-  const up = Object.entries(r.upload || {}).filter(([, v]) => v === 'ok').map(([k]) => k);
-  const arts = (r.artifacts || []).map((a) => `<a class="text-brand hover:underline" href="/artifact?path=${encodeURIComponent(a.url || '')}" target="_blank">${esc(a.name)}</a>`).join(' · ');
-  box.insertAdjacentHTML('beforeend', `<div class="surface p-3 text-sm">
-    <div class="flex items-center gap-2"><span class="${r.buildOk === false ? 'text-rose-300' : 'text-emerald-300'}">${r.buildOk === false ? '✗' : '✓'}</span>
-      <b>${esc(r.env || '')}</b> v${esc(verName(r.version))} <span class="text-slate-500 text-xs">${up.length ? '↑ ' + up.join(', ') : ''}</span>
-      <button class="btn btn-ghost text-[11px] ml-auto" data-share="1">Share</button><button class="btn btn-ghost text-[11px]" data-detail="1">Details</button></div>
-    ${arts ? `<div class="text-[11px] mt-1">${arts}</div>` : ''}</div>`);
-  const last = box.lastElementChild;
-  last.querySelector('[data-share]').onclick = () => (window.openShare ? openShare(r) : toast('Open the build detail to share.', 'info'));
-  last.querySelector('[data-detail]').onclick = () => (window.V.detail ? V.detail(r.time) : null);
+function pollBuildLog() {
+  if (!BUILDLOG) return; BUILDLOG.timer = null;
+  fetch('/api/build/log?since=' + (BUILDLOG.seq || 0)).then((r) => r.json()).then((r) => {
+    if (!BUILDLOG) return;
+    for (const ev of (r.events || [])) { BUILDLOG.seq = ev.seq; applyBuildEvent(ev.event, ev.data); }
+    if (r.busy) BUILDLOG.timer = setTimeout(pollBuildLog, 1000); else finalizeBuild();
+  }).catch(() => { if (BUILDLOG) BUILDLOG.timer = setTimeout(pollBuildLog, 1500); });
 }
 
-function renderBuilds(builds) {
-  const box = el('#bh-builds'); if (!box) return;
-  window.renderHistory ? renderHistory(box, builds) : (box.innerHTML = builds.length ? builds.slice(0, 20).map((b) => `<div data-detail="${esc(b.time)}" class="cursor-pointer">${C.buildRow(b)}</div>`).join('') : '<div class="text-xs text-slate-500">No builds yet for this app.</div>');
-  if (!window.renderHistory) box.querySelectorAll('[data-detail]').forEach((d) => d.onclick = () => (window.V.detail ? V.detail(d.dataset.detail) : null));
+function finalizeBuild() {
+  const bl = BUILDLOG; BUILDLOG = null; BUILDING = false;
+  if (bl && bl.timer) clearTimeout(bl.timer);
+  setBuildBtn(false);
+  if (bl && bl.gotDone) toast(`Done — built ${bl.gotDone.built} · failed ${bl.gotDone.failed}`, bl.gotDone.failed ? 'warn' : 'ok');
+  const recs = (bl && bl.records) || [];
+  renderBuildSummary(recs);
+  if (recs.length && window.offerShare) offerShare(recs);
+  if (recs.length && window.postTeamCards) postTeamCards(recs);
+  if (CUR && CUR.app) fetch('/api/project?path=' + encodeURIComponent(CUR.app.path)).then((r) => r.json()).then((d) => { CUR = d; if (el('#history')) renderHistory(d.builds); });
+  if (bl && bl.done) bl.done();
 }
 
-// On entering the build screen: if a build for THIS project is already running, replay + keep polling.
-async function reattachBuild() {
-  const r = await API.buildLog(0).catch(() => null);
-  if (r && r.busy && r.path === BH.sel) pollLog(true);
+function runOne(payload, extra = {}) {
+  if (BUILDLOG) { toast('A build is already running', 'warn'); return Promise.resolve(); }
+  BUILDING = true; LOG = logSetup();
+  return new Promise((resolve) => {
+    BUILDLOG = { seq: 0, payload: { ...payload, ...extra }, records: [], timer: null, active: true, path: (CUR && CUR.app && CUR.app.path) || '', done: resolve };
+    setBuildBtn(true);
+    fetch('/api/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, ...extra }) }).then((res) => { const rd = res.body.getReader(); const drain = () => rd.read().then(({ done }) => done ? null : drain()).catch(() => {}); return drain(); }).catch(() => {});
+    pollBuildLog();
+  });
+}
+
+function renderBuildSummary(recs) {
+  const box = el('#buildsummary'); if (!box) return;
+  if (!recs || !recs.length) { box.innerHTML = ''; return; }
+  const DLBL = { onedrive: 'OneDrive', firebase: 'Firebase', play: 'Play', testflight: 'TestFlight' };
+  const rows = recs.map((r) => {
+    const env = (r.env || '').toUpperCase(), c = ENV_COLOR[r.env] || 'slate', ok = r.buildOk !== false;
+    const ver = r.version || ((r.buildName || '') + (r.buildNumber ? '+' + r.buildNumber : '')), up = r.upload || {};
+    const link = (dest) => dest === 'onedrive' ? (r.onedriveUrl || ((r.artifacts || []).find((x) => x && x.onedriveUrl) || {}).onedriveUrl || '') : (dest === 'testflight' ? ((r.testflight && r.testflight.url) || '') : '');
+    const chips = Object.keys(DLBL).filter((dest) => up[dest] && up[dest] !== 'skipped').map((dest) => { const okd = up[dest] === 'ok', u = link(dest), inner = (okd ? '✓ ' : '✗ ') + DLBL[dest], cls = okd ? 'text-emerald-300 bg-emerald-500/10' : 'text-rose-300 bg-rose-500/10'; return (u && okd) ? `<a href="${esc(u)}" target="_blank" rel="noopener" class="rounded px-1.5 py-0.5 ${cls} hover:underline">${inner} ↗</a>` : `<span class="rounded px-1.5 py-0.5 ${cls}">${inner}</span>`; }).join(' ');
+    return `<div class="flex items-start gap-2 text-xs py-1"><span class="mt-0.5">${badge(env, c)}</span><div class="min-w-0"><span class="font-mono text-slate-300">${esc(ver)}</span> ${ok ? '<span class="text-emerald-400">✓ built</span>' : '<span class="text-rose-400">✗ failed</span>'}<div class="flex flex-wrap gap-1 mt-1">${chips || '<span class="text-slate-500">built locally · no upload</span>'}</div></div></div>`;
+  }).join('');
+  box.innerHTML = `<div class="surface p-4"><div class="flex items-center mb-2"><div class="font-semibold text-sm">Build summary</div><button id="bs-close" class="ml-auto text-slate-500 hover:text-slate-300 text-xs" title="Dismiss">✕</button></div>${rows}</div>`;
+  const cl = el('#bs-close'); if (cl) cl.onclick = () => { box.innerHTML = ''; };
+}
+
+function handleBuildError(d, payload) {
+  const LG = el('#log');
+  if (!LG || !payload) { const m = document.createElement('div'); m.className = 'text-rose-400 font-semibold'; m.textContent = '✖ ' + (d.message || ''); if (LG) LG.appendChild(m); toast(d.message || 'Build error', 'err'); return; }
+  if (d.kind === 'confirm') { const bar = $(`<div class="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-200"><div class="mb-2">⚠ ${esc(d.message)}</div><button class="rounded bg-rose-500 text-white px-3 py-1 font-semibold">Publish to production</button> <button class="cancel rounded border border-edge px-3 py-1 ml-1">Cancel</button></div>`); bar.querySelector('button').onclick = () => { bar.remove(); runOne({ ...payload, confirmProd: true }); }; bar.querySelector('.cancel').onclick = () => bar.remove(); LG.appendChild(bar); }
+  else if (d.kind === 'dirty' || d.kind === 'duplicate') { toast(d.message.split('\n')[0] + ' — click Build anyway', 'warn'); const bar = $(`<div class="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200"><div class="whitespace-pre-wrap mb-2">${esc(d.message)}</div><button class="rounded bg-amber-500 text-ink px-3 py-1 font-semibold">Build anyway</button></div>`); bar.querySelector('button').onclick = () => { bar.remove(); runOne({ ...payload, allowDirty: true, allowDuplicate: true }); }; LG.appendChild(bar); }
+  else if (d.kind === 'lowVersion') { toast(d.message.split('\n')[0] + ' — bump the app version', 'warn'); const useLbl = d.suggested ? `Use ${esc(d.suggested)} &amp; build` : 'Fix &amp; build'; const bar = $(`<div class="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200"><div class="whitespace-pre-wrap mb-2">⚠ ${esc(d.message)}</div><button class="usefix rounded bg-amber-500 text-ink px-3 py-1 font-semibold">${useLbl}</button> <button class="anyway rounded border border-edge px-3 py-1 ml-1">Build anyway</button></div>`); bar.querySelector('.usefix').onclick = () => { const fixes = d.fixes || []; const envs = (payload.envs || []).map((e) => { const f = fixes.find((x) => x.env === e.env); return f ? { ...e, buildName: f.suggested } : e; }); fixes.forEach((f) => { const inp = document.querySelector(`[data-env="${f.env}"] .bname`); if (inp) inp.value = f.suggested; }); bar.remove(); runOne({ ...payload, envs, allowLowVersion: true }); }; bar.querySelector('.anyway').onclick = () => { bar.remove(); runOne({ ...payload, allowLowVersion: true }); }; LG.appendChild(bar); }
+  else { const m = document.createElement('div'); m.className = 'text-rose-400 font-semibold'; m.textContent = '✖ ' + d.message; LG.appendChild(m); toast(d.message, 'err'); }
+}
+
+function reattachBuildLog() {
+  fetch('/api/build/log?since=0').then((r) => r.json()).then((r) => {
+    if (!r.busy) return;
+    const forThis = CUR && CUR.app && (r.path === CUR.app.path || (r.info && r.info.project === CUR.app.name));
+    if (!forThis) return;
+    BUILDING = true; LOG = logSetup(); setBuildBtn(true);
+    if (!BUILDLOG) BUILDLOG = { seq: 0, payload: null, records: [], timer: null, active: true, path: r.path || '' };
+    else { if (BUILDLOG.timer) clearTimeout(BUILDLOG.timer); BUILDLOG.seq = 0; }
+    pollBuildLog();
+  }).catch(() => {});
+}
+
+// Best-effort header TestFlight readout (tolerant of our /api/testflight/latest shape).
+async function loadTestFlightLatest(path) {
+  const set = (html) => { const t = el('#tf-latest'); if (t && CUR && CUR.app && CUR.app.path === path) t.innerHTML = html; };
+  try {
+    const r = await fetch('/api/testflight/latest?path=' + encodeURIComponent(path)).then((r) => r.json());
+    if (r && r.url) set(`<a href="${esc(r.url)}" target="_blank" rel="noopener" style="color:var(--iris2)">${esc(r.state || 'App Store Connect')} ▸</a>`);
+    else set('<span style="color:var(--muted)">—</span>');
+  } catch { set('<span style="color:var(--muted)">unavailable</span>'); }
 }
