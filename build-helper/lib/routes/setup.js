@@ -8,8 +8,8 @@ const fs = require('fs');
 const path = require('path');
 const { setupStatus, handleSetupPlay, handleSetupApple, handleSetupFirebaseApp, handleSetupFirebaseLogin, handleSetupNotify, handleSetupEmail } = require('../setup');
 const { setSources, validateSource } = require('../state');
-const { handleSetupRclone } = require('../onedrive');
-const { doctorData, doctorInstallCmd } = require('../dashboard');
+const { handleSetupRclone, handleSetupRcloneShared } = require('../onedrive');
+const { doctorData, doctorInstallCmd, doctorFull } = require('../dashboard');
 const { run } = require('../shell');
 
 function register(app) {
@@ -33,9 +33,17 @@ function register(app) {
   app.r('POST', '/api/setup/email', ({ res, body }) => handleSetupEmail(res, body), { body: true });
   // SSE OAuth/login flows — streamSSE POSTs an (ignored) empty body; the handler streams progress.
   app.r('POST', '/api/setup/onedrive', ({ req, res }) => handleSetupRclone(req, res));
+  app.r('POST', '/api/setup/onedrive-shared', ({ req, res, body }) => handleSetupRcloneShared(req, res, body), { body: true });
   app.r('POST', '/api/setup/firebase-login', ({ req, res }) => handleSetupFirebaseLogin(req, res));
   app.r('GET', '/api/doctor', ({ res }) => J(res, 200, doctorData()));
   app.r('POST', '/api/doctor/install', ({ res, body }) => installTool(res, body), { body: true });
+  // Live `flutter doctor -v` over SSE — the full toolchain report, on demand.
+  app.r('POST', '/api/doctor/full', ({ res }) => {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+    const send = (e, d) => res.write(`event: ${e}\ndata: ${JSON.stringify(d)}\n\n`);
+    send('step', { text: 'flutter doctor -v' });
+    doctorFull((line) => send('log', { line })).then(() => { send('done', { ok: true }); res.end(); });
+  });
 }
 
 // Install one missing tool via its known-safe (non-sudo, non-interactive) command, streaming over SSE.

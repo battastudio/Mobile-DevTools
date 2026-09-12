@@ -1,6 +1,6 @@
 'use strict';
 // Doctor: environment/preflight checks — is each tool installed, its version, and how to install it.
-const { execFileSync } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 const { ROOT, FLUTTER, RCLONE } = require('../state');
 const { setupStatus } = require('../setup');
 
@@ -47,4 +47,16 @@ function doctorData() {
 }
 const doctorInstallCmd = (tool) => { const t = TOOL_INSTALL[tool]; return t && t.canInstall ? t.cmd : null; };
 
-module.exports = { TOOL_INSTALL, doctorData, doctorInstallCmd };
+// Live `flutter doctor -v` — streams each line to onLine, resolves on exit. Never rejects.
+function doctorFull(onLine) {
+  return new Promise((resolve) => {
+    let buf = '';
+    const pump = (c) => { buf += c.toString(); let i; while ((i = buf.indexOf('\n')) >= 0) { onLine(buf.slice(0, i)); buf = buf.slice(i + 1); } };
+    let p; try { p = spawn(FLUTTER, ['doctor', '-v'], { env: process.env }); } catch (e) { onLine(`flutter doctor unavailable: ${e.message}`); return resolve(); }
+    p.stdout.on('data', pump); p.stderr.on('data', pump);
+    p.on('error', (e) => { onLine(`flutter doctor unavailable: ${e.message}`); resolve(); });
+    p.on('close', () => { if (buf) onLine(buf); resolve(); });
+  });
+}
+
+module.exports = { TOOL_INSTALL, doctorData, doctorInstallCmd, doctorFull };

@@ -8,12 +8,17 @@ window.V.setup = async function () {
   _body().innerHTML = _skel(3);
   const [s, doc] = await Promise.all([API.setup().catch(() => ({})), API.doctor().catch(() => ({ checks: [] }))]);
   _body().innerHTML = `
-    <div class="eyebrow mb-2">Doctor <span class="text-[10px] font-normal text-slate-500">— toolchain preflight${doc.diskFree ? ' · ' + esc(doc.diskFree) : ''}</span></div>
+    <div class="flex items-center gap-2 mb-2"><div class="eyebrow">Doctor <span class="text-[10px] font-normal text-slate-500">— toolchain preflight${doc.diskFree ? ' · ' + esc(doc.diskFree) : ''}</span></div>
+      <button id="cn-doctor-full" class="btn btn-ghost text-xs px-2 py-1 ml-auto">Run flutter doctor</button></div>
     <div class="surface p-3 mb-5 divide-y divide-edge/50">${(doc.checks || []).map(_check).join('')}</div>
 
     <div class="eyebrow mb-2">Distribution connectors</div>
     <div class="grid sm:grid-cols-2 gap-3 mb-3">
-      ${_conn('OneDrive', s.onedriveConnected, `<button id="cn-od" class="btn btn-primary text-sm">${ICON.link}Connect OneDrive (rclone)</button><div class="text-[11px] text-slate-500 mt-2">Base folder: <span class="font-mono">${esc(s.onedriveBase || '')}</span></div>`)}
+      ${_conn('OneDrive', s.onedriveConnected, `<button id="cn-od" class="btn btn-primary text-sm">${ICON.link}Connect OneDrive (rclone)</button>
+        <div class="text-[11px] text-slate-500 mt-2">Base folder: <span class="font-mono">${esc(s.onedriveBase || '')}</span></div>
+        <div class="mt-3 pt-2 border-t border-edge/50"><div class="text-[11px] text-slate-500 mb-1">Shared team folder (own account → owner's folder)</div>
+          <div class="flex gap-2"><input id="od-base" class="field text-xs flex-1" value="${esc(s.onedriveBase || '')}" placeholder="Mobile apps"/><button id="cn-od-shared" class="btn btn-secondary text-xs">Connect</button></div>
+          <div class="text-[10px] text-slate-500 mt-1">Add the shared folder to “My files” in OneDrive first, then enter its path.</div></div>`)}
       ${_conn('Firebase App Distribution', s.firebaseCli, `<button id="cn-fb" class="btn btn-primary text-sm">${ICON.link}Login to Firebase CLI</button><div class="text-[11px] text-slate-500 mt-2">Then set the Firebase App ID per app in App Setup.</div>`)}
     </div>
     <div class="grid sm:grid-cols-2 gap-3">
@@ -30,6 +35,8 @@ window.V.setup = async function () {
 
   const logBox = () => { const b = el('#su-log'); b.classList.remove('hidden'); b.textContent = ''; return b; };
   el('#cn-od').onclick = () => API.stream('/api/setup/onedrive', {}, logBox(), () => V.setup());
+  el('#cn-od-shared').onclick = () => API.stream('/api/setup/onedrive-shared', { base: el('#od-base').value.trim() }, logBox(), () => V.setup());
+  el('#cn-doctor-full').onclick = () => API.stream('/api/doctor/full', {}, logBox());
   el('#cn-fb').onclick = () => API.stream('/api/setup/firebase-login', {}, logBox(), () => V.setup());
   el('#cn-play').onclick = async () => { const r = await API.post('/api/setup/play', { serviceAccountJson: el('#pl-sa').value, defaultTrack: el('#pl-track').value }); r.ok ? (toast('Google Play saved', 'ok'), V.setup()) : toast(r.error || 'Failed', 'err'); };
   el('#cn-apple').onclick = async () => { const r = await API.post('/api/setup/apple', { keyId: el('#ap-key').value.trim(), issuerId: el('#ap-iss').value.trim(), p8: el('#ap-p8').value }); r.ok ? (toast('Apple saved', 'ok'), V.setup()) : toast(r.error || 'Failed', 'err'); };

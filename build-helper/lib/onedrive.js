@@ -39,4 +39,27 @@ async function handleSetupRclone(req, res) {
   res.end();
 }
 
-module.exports = { onedriveConnected, ensureRclone, handleSetupRclone };
+// Shared/team-folder mode: connect your OWN OneDrive account, then route uploads into a team folder
+// the owner shared with you. Add the shared folder to "My files" (OneDrive → shared → "Add shortcut
+// to My files") so it appears under your drive at a plain path — then enter that path as the base.
+// ponytail: path-based (needs the shortcut). Full share-link → drive_id/root_folder_id resolution via
+// Microsoft Graph (the old team mode) can replace this if link-only sharing must work.
+async function handleSetupRcloneShared(req, res, body) {
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+  const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  const log = (line) => send('log', { line });
+  const cfg = readConfig();
+  try {
+    const base = String((body || {}).base || '').trim();
+    if (!base) throw new Error('Enter the shared/team folder path (as it appears under your OneDrive).');
+    await ensureRclone(log);
+    send('step', { text: 'Connecting your OneDrive — a browser window will open for login…' });
+    await run(RCLONE, rc(['config', 'create', cfg.onedrive.remote, 'onedrive']), process.cwd(), log);
+    cfg.onedrive.base = base; writeConfig(cfg);
+    log(`OneDrive connected ✓ — uploads will go to "${base}".`);
+    send('done', { ok: true, base });
+  } catch (e) { send('error', { message: e.message }); }
+  res.end();
+}
+
+module.exports = { onedriveConnected, ensureRclone, handleSetupRclone, handleSetupRcloneShared };

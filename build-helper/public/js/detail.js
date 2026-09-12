@@ -1,0 +1,52 @@
+// Build Helper frontend — build detail (V.detail) + per-project analytics (V.analytics), source
+// design. Detail: metadata, artifacts (download / share / reveal / copy-path / re-upload), uploads,
+// TestFlight re-manage, Play rollback, full log. Rendered into #bhbody under the kit nav.
+'use strict';
+
+const LABELS_D = { onedrive: 'OneDrive', firebase: 'Firebase', play: 'Play', testflight: 'TestFlight' };
+const artPath = (a) => { try { return new URL(a.url).searchParams.get('path'); } catch { return null; } };
+
+window.V.detail = async function (time) {
+  if (window.setShell) setShell('build');
+  _body().innerHTML = '<button id="dback" class="rounded-lg border border-edge px-3 py-1.5 text-sm hover:bg-panel mb-4">← Back</button><div id="detbody" class="text-slate-400 text-sm">Loading…</div>';
+  el('#dback').onclick = () => (BH.sel ? V.project(BH.sel) : V.dashboard());
+  const r = await fetch('/api/build?time=' + encodeURIComponent(time)).then((r) => r.json()).catch(() => ({}));
+  if (!r.build) { el('#detbody').textContent = 'Build not found.'; return; }
+  const b = r.build, c = ENV_COLOR[b.env] || 'slate';
+  let logtext = ''; if (b.logFile) { try { logtext = await fetch('/api/log?file=' + encodeURIComponent(b.logFile)).then((x) => x.text()); } catch {} }
+  const u = b.upload || {}, chip = (k, v) => (!v || v === 'skipped') ? '' : `<span class="mr-2 ${v === 'ok' ? 'text-emerald-400' : 'text-rose-400'}">${LABELS_D[k]}:${v}</span>`;
+  const DEST_FOR_ART = { apk: ['onedrive', 'firebase'], aab: ['play', 'onedrive', 'firebase'], ipa: ['testflight', 'onedrive'] };
+  const DLBL = { onedrive: '☁ OneDrive', firebase: '🔥 Firebase', play: '▶ Play', testflight: '✈️ TestFlight' };
+  const arts = (b.artifacts || []).map((a) => { const p = artPath(a); return `<div class="rounded-xl border border-edge bg-ink p-3 text-xs"><div class="flex items-center gap-2"><span class="font-mono flex-1 truncate">${esc(a.name)}</span>${a.size ? `<span class="text-slate-500">${fmtBytes(a.size)}</span>` : ''}${p ? `<a href="/artifact?path=${encodeURIComponent(p)}" class="text-emerald-400">↓ Download</a><a href="/install?path=${encodeURIComponent(p)}" target="_blank" class="text-sky-400">Share</a><button class="drev text-slate-400" data-p="${esc(p)}">Reveal</button><button class="dcopy text-slate-400" data-p="${esc(p)}">Copy path</button>` : ''}</div>${p ? `<div class="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-edge/60"><span class="text-slate-500">Upload →</span>${(DEST_FOR_ART[a.art] || []).map((t) => `<button class="dup rounded border border-edge px-2 py-0.5 hover:bg-panel" data-t="${t}" data-name="${esc(a.name)}">${DLBL[t]}</button>`).join('')}</div>` : ''}</div>`; }).join('') || '<div class="text-xs text-slate-500">No artifacts.</div>';
+  el('#detbody').innerHTML = `
+    <div class="flex items-center gap-3 mb-4"><div class="font-bold text-xl">${esc(b.project)}</div>${badge(b.env.toUpperCase(), c)}<span class="font-mono text-slate-300">${b.version}</span>${b.buildOk === false ? '<span class="text-rose-400">✗ build failed</span>' : '<span class="text-emerald-400">✓ built</span>'}${b.buildOk !== false ? '<button id="detshare" class="ml-auto rounded-lg bg-sky-500 text-white px-3 py-1.5 text-sm font-semibold">📤 Share</button>' : ''}</div>
+    <div class="grid lg:grid-cols-3 gap-4"><div class="lg:col-span-2 space-y-4">
+      <div class="surface p-4 text-xs text-slate-400 grid grid-cols-2 gap-y-1"><div>Time</div><div class="text-slate-300">${new Date(b.time).toLocaleString()}</div><div>Branch</div><div class="text-slate-300">${esc(b.branch || '—')}</div>${b.by ? `<div>Built by</div><div class="text-slate-300">${esc(b.by)}</div>` : ''}<div>Duration</div><div class="text-slate-300">${b.durationMs ? fmtDur(b.durationMs) : '—'}</div><div>Commit</div><div class="text-slate-300 font-mono">${b.commit ? (r.commitUrl ? `<a href="${esc(r.commitUrl)}" target="_blank" class="text-sky-400">${b.commit.slice(0, 8)}</a>` : b.commit.slice(0, 8)) : '—'}</div>${b.tag ? `<div>Tag</div><div class="text-violet-300">🏷 ${esc(b.tag)}</div>` : ''}</div>
+      <div class="surface p-4"><div class="text-sm font-semibold mb-2">Artifacts</div><div class="space-y-2">${arts}</div><div id="detuplog" class="log mt-2 hidden max-h-40 overflow-auto bg-ink rounded p-2 text-slate-300"></div></div>
+      ${b.error ? `<div class="rounded-2xl border border-rose-500/40 bg-rose-500/5 p-4 text-xs text-rose-300">${esc(b.error)}</div>` : ''}
+      <div class="surface p-4"><div class="text-sm font-semibold mb-2">Full log</div><pre class="log bg-ink rounded-lg p-3 max-h-96 overflow-auto whitespace-pre-wrap text-slate-300">${esc(stripAnsi(logtext || '(no log)'))}</pre></div></div>
+      <div class="space-y-4"><div class="surface p-4"><div class="text-sm font-semibold mb-2">Uploads</div><div class="text-xs">${chip('onedrive', u.onedrive)}${chip('firebase', u.firebase)}${chip('play', u.play)}${chip('testflight', u.testflight)}${!Object.values(u).some((v) => v && v !== 'skipped') ? '<span class="text-slate-500">no uploads</span>' : ''}</div>
+        ${(b.artifacts || []).some((a) => a.art === 'ipa') ? '<button id="tfmanage" class="mt-2 text-xs rounded-lg border border-edge px-2.5 py-1 hover:bg-panel">✈️ Re-apply TestFlight notes + compliance</button><div id="tfmlog" class="log mt-2 hidden max-h-32 overflow-auto bg-ink rounded p-2 text-slate-300"></div>' : ''}
+        ${b.playVersionCode ? `<div class="mt-3 border-t border-edge pt-3"><div class="text-xs text-slate-400 mb-1">Play rollback (versionCode ${b.playVersionCode})</div><div class="flex gap-2"><select id="rbtrack" class="rounded-lg bg-ink border border-edge px-2 py-1 text-xs">${['internal', 'alpha', 'beta', 'production'].map((t) => `<option>${t}</option>`).join('')}</select><button id="rbgo" class="text-xs rounded-lg bg-amber-500 text-ink px-3 py-1 font-semibold">Promote</button></div><div id="rblog" class="log mt-2 hidden max-h-32 overflow-auto bg-ink rounded p-2 text-slate-300"></div></div>` : ''}</div>
+      ${b.whatsNew ? `<div class="surface p-4"><div class="text-sm font-semibold mb-1">What's new</div><div class="text-xs text-emerald-300/90 whitespace-pre-wrap">${esc(b.whatsNew)}</div></div>` : ''}</div></div>`;
+  el('#detbody').querySelectorAll('.drev').forEach((x) => x.onclick = () => API.reveal(x.dataset.p));
+  el('#detbody').querySelectorAll('.dcopy').forEach((x) => x.onclick = () => { navigator.clipboard.writeText(x.dataset.p); toast('Path copied', 'ok'); });
+  el('#detbody').querySelectorAll('.dup').forEach((x) => x.onclick = async () => { const box = el('#detuplog'); box.classList.remove('hidden'); box.innerHTML = ''; const head = document.createElement('div'); head.className = 'text-sky-300 font-semibold'; head.textContent = `→ ${x.textContent.trim()} · ${x.dataset.name}`; box.appendChild(head); const line = document.createElement('div'); box.appendChild(line); await new Promise((res) => streamSSEInto('/api/retry-upload', { path: b.path, artifactName: x.dataset.name, target: x.dataset.t, track: b.env === 'prod' ? 'production' : 'internal', notes: b.whatsNew }, line, res)); toast('Upload done — see log', 'ok'); });
+  if (el('#tfmanage')) el('#tfmanage').onclick = async () => { const box = el('#tfmlog'); box.classList.remove('hidden'); box.innerHTML = ''; await new Promise((res) => streamSSEInto('/api/testflight/manage', { path: b.path, buildNumber: b.buildNumber, notes: b.whatsNew }, box, res)); toast('TestFlight updated', 'ok'); };
+  if (el('#detshare')) el('#detshare').onclick = () => showShareCard([b]);
+  const rb = el('#rbgo'); if (rb) rb.onclick = () => { const box = el('#rblog'); box.classList.remove('hidden'); streamSSEInto('/api/rollback', { path: b.path, versionCode: b.playVersionCode, track: el('#rbtrack').value }, box, null); };
+};
+
+window.V.analytics = async function (path) {
+  if (window.setShell) setShell('build');
+  _body().innerHTML = '<button id="aback" class="rounded-lg border border-edge px-3 py-1.5 text-sm hover:bg-panel mb-4">← Back</button><div id="pabody" class="text-slate-400 text-sm">Loading…</div>';
+  el('#aback').onclick = () => V.project(path);
+  const d = await API.dashboard().catch(() => null); if (!d) { el('#pabody').textContent = 'Failed to load.'; return; }
+  const B = d.builds.filter((b) => b.path === path), name = B[0]?.project || d.projects.find((p) => p.path === path)?.name || path.split('/').pop();
+  const ok = B.filter((b) => b.buildOk !== false).length;
+  const sizePts = B.filter((b) => b.artifacts && b.artifacts[0]?.size).slice().reverse().map((b) => ({ label: b.version, ms: b.artifacts[0].size }));
+  const durPts = B.filter((b) => b.durationMs).slice().reverse().map((b) => ({ label: b.version, ms: b.durationMs }));
+  el('#pabody').innerHTML = `<div class="font-bold text-xl mb-4">${esc(name)} · analytics</div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4"><div class="surface p-4"><div class="text-[11px] text-slate-400">Builds</div><div class="text-3xl font-bold">${B.length}</div></div><div class="surface p-4"><div class="text-[11px] text-slate-400">Success</div><div class="text-3xl font-bold">${B.length ? Math.round(ok / B.length * 100) : 0}%</div></div><div class="surface p-4"><div class="text-[11px] text-slate-400">Latest size</div><div class="text-3xl font-bold">${sizePts.length ? fmtBytes(sizePts[sizePts.length - 1].ms) : '—'}</div></div><div class="surface p-4"><div class="text-[11px] text-slate-400">Avg build</div><div class="text-3xl font-bold">${durPts.length ? fmtDur(durPts.reduce((a, b) => a + b.ms, 0) / durPts.length) : '—'}</div></div></div>
+    <div class="grid lg:grid-cols-2 gap-3 mb-4"><div class="surface p-4"><div class="text-sm font-semibold mb-1">Builds over time</div>${stackedColumnsSvg(bucketDays(B, 90))}</div><div class="surface p-4"><div class="text-sm font-semibold mb-1">Duration</div>${lineSvg(durPts)}</div><div class="surface p-4"><div class="text-sm font-semibold mb-1">Artifact size</div>${lineSvg(sizePts)}</div><div class="surface p-4"><div class="text-sm font-semibold mb-2">Version history</div><div class="space-y-1 max-h-64 overflow-auto">${B.slice(0, 20).map((b) => `<div class="text-xs flex items-center gap-2"><span class="text-slate-500 w-28">${relTime(b.time)}</span>${badge(b.env.toUpperCase(), ENV_COLOR[b.env] || 'slate')}<span class="font-mono">${b.version}</span>${b.buildOk === false ? '<span class="text-rose-400">✗</span>' : ''}</div>`).join('')}</div></div></div>`;
+};

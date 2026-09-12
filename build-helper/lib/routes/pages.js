@@ -4,8 +4,9 @@
 const fs = require('fs');
 const path = require('path');
 const { installPage, manifestPlist } = require('../pages');
+const { proxyQr } = require('../qr');
 const { readGroups, handleGroupsSave, handleEmailTest, handleEmailSend } = require('../messaging');
-const { feedClients, feedHistory, ARTIFACTS_DIR } = require('../state');
+const { feedClients, feedHistory, ARTIFACTS_DIR, LOGS_DIR } = require('../state');
 
 function register(app) {
   const J = app.sendJson;
@@ -16,7 +17,11 @@ function register(app) {
     feedClients.add(res);
     req.on('close', () => feedClients.delete(res));
   });
-  app.r('GET', '/api/groups', ({ res, q }) => { const g = readGroups(); const repo = q.get('repo') || ''; return J(res, 200, { groups: [...(g['*'] || []), ...(repo ? g[repo] || [] : [])] }); });
+  // Same-origin QR PNG proxy — the share-card canvas needs an untainted image source.
+  app.r('GET', '/api/qr', ({ res, q }) => proxyQr(res, q.get('text') || q.get('data'), q.get('size')));
+  app.r('GET', '/api/groups', ({ res, q }) => { const g = readGroups(); const repo = q.get('repo') || ''; return J(res, 200, { groups: [...(g['*'] || []), ...(repo ? g[repo] || [] : [])], own: repo ? g[repo] || [] : [], global: g['*'] || [] }); });
+  // Raw build log by its LOGS_DIR-relative path (from a build record's logFile).
+  app.r('GET', '/api/log', ({ res, q }) => { const p = path.normalize(path.join(LOGS_DIR, q.get('file') || '')); if (!p.startsWith(LOGS_DIR + path.sep) || !fs.existsSync(p)) { res.writeHead(404); return res.end('not found'); } res.writeHead(200, { 'Content-Type': 'text/plain' }); fs.createReadStream(p).pipe(res); });
   app.r('POST', '/api/groups/save', ({ res, body }) => handleGroupsSave(res, body), { body: true });
   app.r('GET', '/api/email/test', ({ res }) => handleEmailTest(res));
   app.r('POST', '/api/email/send', ({ req, res, body }) => handleEmailSend(req, res, body), { body: true });

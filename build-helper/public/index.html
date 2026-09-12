@@ -18,6 +18,22 @@
   .bh-card:hover{border-color:var(--edge2)}
   .bh-art{cursor:pointer;user-select:none;transition:border-color .15s,background .15s}
   .bh-art.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 10%,var(--panel))}
+  /* Release pipeline stations/rail (source design) — kit.css lacks the sel/cur states */
+  .pipeline{display:flex;align-items:center;gap:0}
+  .station{display:inline-flex;align-items:center;gap:.5rem;flex:none;cursor:pointer;background:none;border:0;padding:.2rem .1rem;-webkit-appearance:none}
+  .station .node{width:.62rem;height:.62rem;border-radius:999px;background:color-mix(in srgb,var(--stn) 14%,transparent);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--stn) 40%,transparent);transition:transform .18s ease,box-shadow .22s ease,background .22s ease}
+  .station:hover .node{transform:scale(1.28);box-shadow:inset 0 0 0 1.5px var(--stn)}
+  .station.sel .node{background:var(--stn);box-shadow:0 0 0 4px color-mix(in srgb,var(--stn) 24%,transparent),0 0 14px color-mix(in srgb,var(--stn) 60%,transparent)}
+  .station.cur .node{box-shadow:0 0 0 2px color-mix(in srgb,var(--stn) 55%,transparent);animation:stnPulse 2.4s ease-in-out infinite}
+  .station.cur.sel .node{animation:none}
+  @keyframes stnPulse{0%,100%{box-shadow:0 0 0 2px color-mix(in srgb,var(--stn) 35%,transparent)}50%{box-shadow:0 0 0 4px color-mix(in srgb,var(--stn) 18%,transparent),0 0 10px color-mix(in srgb,var(--stn) 40%,transparent)}}
+  .station .lbl{font-size:.66rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);transition:color .2s}
+  .station.sel .lbl,.station.cur .lbl{color:#fff}
+  .rail{height:2px;width:1.4rem;background:linear-gradient(90deg,var(--edge2),var(--edge));border-radius:2px;flex:none;transition:background .25s}
+  .rail.lit{background:linear-gradient(90deg,var(--a),var(--b))}
+  table.health th{cursor:pointer;user-select:none}
+  table.health tbody tr:hover{background:var(--hover,#171B22)}
+  #tt{position:fixed;z-index:60;display:none;pointer-events:none;background:#0C0E12;border:1px solid var(--edge2);border-radius:8px;padding:6px 9px;font-size:11px;color:var(--ink);box-shadow:0 12px 28px rgba(0,0,0,.6);max-width:240px}
 </style>
 </head>
 <body class="text-slate-200 min-h-screen">
@@ -38,10 +54,25 @@
 <!-- ordered UI modules: each attaches to window.* for the next -->
 <script src="/js/state.js"></script>
 <script src="/js/api.js"></script>
+<script src="/js/bh-ui.js"></script>
 <script src="/js/components.js"></script>
+<script src="/js/charts.js"></script>
+<script src="/js/health-table.js"></script>
 <script src="/js/views.js"></script>
+<script src="/js/dashboard.js"></script>
+<script src="/js/build-form.js"></script>
+<script src="/js/build-wire.js"></script>
+<script src="/js/build-run.js"></script>
+<script src="/js/history.js"></script>
+<script src="/js/share-card.js"></script>
+<script src="/js/share.js"></script>
+<script src="/js/share-actions.js"></script>
+<script src="/js/detail.js"></script>
+<script src="/js/app-setup.js"></script>
+<script src="/js/app-setup-more.js"></script>
 <script src="/js/project.js"></script>
 <script src="/js/setup.js"></script>
+<script src="/js/cmdk.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>

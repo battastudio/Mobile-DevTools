@@ -26,7 +26,7 @@ kit.connectors.registerRoutes(app);  // /api/connectors* (Jira/GitHub/… issue 
 registerRoutes(app);                 // apps · build · signing · setup · distribute · pages
 
 if (process.argv.includes('--selftest')) selftest();
-else app.start();
+else { app.start(); require('./lib/schedule').startScheduler(); }
 
 // Self-check for CI: re-register the whole route graph onto a throwaway (never-listening) app to
 // count routes, then exercise the detection pipeline on a synthetic Flutter project. No network,
@@ -35,8 +35,13 @@ function selftest() {
   try {
     const fs = require('fs'); const os = require('os');
     const probe = createKitServer({ id: 'bh-selftest', name: 'x', defaultPort: 0, repoDir: __dirname, publicDir: '', dataDir: dataDir(tool.id), manifest: {} });
-    let n = 0; const orig = probe.r; probe.r = (...a) => { n++; return orig.apply(probe, a); };
+    let n = 0; const seen = new Set(); const orig = probe.r; probe.r = (...a) => { n++; seen.add(a[1]); return orig.apply(probe, a); };
     kit.team.register(probe); kit.connectors.registerRoutes(probe); registerRoutes(probe);
+    const assert = require('assert');
+    for (const p of ['/api/testflight/manage', '/api/testflight/latest', '/api/qr', '/api/tracker/tasks', '/api/jira/search', '/api/doctor/full',
+      '/api/security/grades', '/api/version', '/api/changelog/tool', '/api/self-update', '/api/setup/onedrive-shared'])
+      assert(seen.has(p), `route not registered: ${p}`);
+    const sch = require('./lib/schedule'); assert(typeof sch.startScheduler === 'function' && typeof sch.checkSchedules === 'function', 'schedule module missing');
 
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bh-'));
     fs.writeFileSync(path.join(dir, 'pubspec.yaml'), 'name: sample\nversion: 1.2.3+4\n');
