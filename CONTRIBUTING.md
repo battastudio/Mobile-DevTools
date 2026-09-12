@@ -26,7 +26,7 @@ to hack on. Please follow them — CI enforces the important ones.
 
 4. **Zero runtime dependencies.** Tool code uses the Node standard library
    only — no npm packages. (The docs site, which has its own Astro toolchain,
-   lives in a separate repo: `battastudio/Mobile-DevTools-Docs`.)
+   lives in this repo under `docs/` and is exempt from these rules.)
    Before writing code, climb the ladder: does it need to exist at all? Does
    the stdlib already do it? Can it be one line?
 
@@ -62,8 +62,8 @@ to hack on. Please follow them — CI enforces the important ones.
     variables only.
 
 15. **Docs as you go.** Every tool folder has a `README`; every user-facing
-    feature has a page in the docs site
-    ([battastudio/Mobile-DevTools-Docs](https://github.com/battastudio/Mobile-DevTools-Docs)).
+    feature has a page in the docs site (in `docs/`, published at
+    [battastudio.github.io/Mobile-DevTools](https://battastudio.github.io/Mobile-DevTools/)).
 
 ## Architecture at a glance
 
@@ -76,7 +76,7 @@ to hack on. Please follow them — CI enforces the important ones.
 - **No accounts.** There is no login, no users, no server-side state beyond
   local JSON config files under `~/.mobile-devtools/`.
 
-See the [Architecture page](https://battastudio.github.io/Mobile-DevTools-Docs/reference/architecture/)
+See the [Architecture page](https://battastudio.github.io/Mobile-DevTools/reference/architecture/)
 for the full picture.
 
 ## Before you open a PR

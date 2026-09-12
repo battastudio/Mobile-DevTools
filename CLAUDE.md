@@ -4,25 +4,26 @@ Zero-dependency, self-hosted Flutter toolkit. Pure Node stdlib, no build step,
 **no accounts, no login** — everything runs on `localhost`. Full engineering
 rules live in [`CONTRIBUTING.md`](./CONTRIBUTING.md); read it before writing code.
 
-## The two repos (keep them in lockstep)
+## Docs live in this repo (`docs/`)
 
-| Repo | Local path | Purpose |
-|------|------------|---------|
-| **Code** (this one) | `…/Batta Studio/Mobile-DevTools` | the four tools + `platform-kit` spine + hub |
-| **Docs** | `…/Batta Studio/Mobile-DevTools-Docs` | Astro Starlight site, published to GitHub Pages |
+The Astro Starlight docs site is **in this repo** under `docs/` — a self-contained
+npm project that deploys to GitHub Pages at
+`https://battastudio.github.io/Mobile-DevTools/` via
+`.github/workflows/deploy-docs.yml`. Build it with
+`cd docs && npm install && npm run build`.
 
-## MANDATORY: mirror every user-facing change into the docs repo
+## MANDATORY: mirror every user-facing change into the docs
 
 Any change here that alters behaviour a user can see — a new/renamed tool,
 route, flag, setup step, screen, config field, port, or requirement — **must**
-be reflected in `../Mobile-DevTools-Docs/src/content/docs/` in the *same* piece
-of work. Do not consider a task done until the docs match the code. Pure
-internal refactors (no observable behaviour change) don't need a docs edit;
-when unsure, add a note to the relevant page.
+be reflected in `docs/src/content/docs/` in the *same* piece of work. Do not
+consider a task done until the docs match the code. Pure internal refactors (no
+observable behaviour change) don't need a docs edit; when unsure, add a note to
+the relevant page.
 
 Checklist before finishing a change:
 - [ ] Code + per-tool `README.md` updated.
-- [ ] Matching page(s) in `../Mobile-DevTools-Docs/src/content/docs/` updated (or created).
+- [ ] Matching page(s) in `docs/src/content/docs/` updated (or created).
 - [ ] `node scripts/check-lines.js` clean and the affected `--selftest` passes.
 
 ## Invariants — don't regress these

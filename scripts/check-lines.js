@@ -9,7 +9,8 @@ const ROOT = path.join(__dirname, '..');
 const MAX = 150;
 const EXT = new Set(['.js', '.mjs', '.cjs']);
 const SKIP_DIRS = new Set(['node_modules', '.git']);
-const SKIP_PATHS = [];
+// docs/ is the Astro docs site (its own npm project) — not part of the tools' source.
+const SKIP_PATHS = ['docs'];
 
 const isExempt = (rel) => SKIP_PATHS.some((p) => rel === p || rel.startsWith(p + path.sep));
 
