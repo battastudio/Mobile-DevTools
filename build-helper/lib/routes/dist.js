@@ -4,7 +4,7 @@
 // cleanup, CSV / printable build reports, and Jira release / issue creation.
 const { handleRollback, handleRetryUpload, handleShareImage, handleMkdirs, handleTeamCard,
   cleanupArtifacts, reportRows, reportCsv, reportHtml } = require('../dashboard');
-const { handleCreateRelease, handleCreateIssue } = require('../trackers');
+const { handleCreateRelease, handleCreateIssue, handleTasks, jiraSearchFor } = require('../trackers');
 
 function register(app) {
   const J = app.sendJson;
@@ -16,6 +16,9 @@ function register(app) {
   app.r('POST', '/api/cleanup', ({ res, body }) => J(res, 200, cleanupArtifacts(body)), { body: true });
   app.r('POST', '/api/tracker/release', ({ req, res, body }) => handleCreateRelease(req, res, body), { body: true });
   app.r('POST', '/api/tracker/issue', ({ res, body }) => handleCreateIssue(res, body), { body: true });
+  // Build-page Jira picker: commit-scraped tasks (?path=&env=) and issue search to link (?path=&q=).
+  app.r('GET', '/api/tracker/tasks', ({ res, q }) => handleTasks(res, q.get('path'), q.get('env')));
+  app.r('GET', '/api/jira/search', ({ res, q }) => jiraSearchFor(res, q.get('path'), q.get('q')));
   // Reports filter by ?range=<days>&project=&env= and download inline.
   app.r('GET', '/api/report.csv', ({ res, q }) => {
     res.writeHead(200, { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="build-report.csv"' });

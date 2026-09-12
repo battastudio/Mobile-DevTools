@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const { installPage, manifestPlist } = require('../pages');
+const { proxyQr } = require('../qr');
 const { readGroups, handleGroupsSave, handleEmailTest, handleEmailSend } = require('../messaging');
 const { feedClients, feedHistory, ARTIFACTS_DIR } = require('../state');
 
@@ -16,7 +17,9 @@ function register(app) {
     feedClients.add(res);
     req.on('close', () => feedClients.delete(res));
   });
-  app.r('GET', '/api/groups', ({ res, q }) => { const g = readGroups(); const repo = q.get('repo') || ''; return J(res, 200, { groups: [...(g['*'] || []), ...(repo ? g[repo] || [] : [])] }); });
+  // Same-origin QR PNG proxy — the share-card canvas needs an untainted image source.
+  app.r('GET', '/api/qr', ({ res, q }) => proxyQr(res, q.get('text'), q.get('size')));
+  app.r('GET', '/api/groups', ({ res, q }) => { const g = readGroups(); const repo = q.get('repo') || ''; return J(res, 200, { groups: [...(g['*'] || []), ...(repo ? g[repo] || [] : [])], own: repo ? g[repo] || [] : [], global: g['*'] || [] }); });
   app.r('POST', '/api/groups/save', ({ res, body }) => handleGroupsSave(res, body), { body: true });
   app.r('GET', '/api/email/test', ({ res }) => handleEmailTest(res));
   app.r('POST', '/api/email/send', ({ req, res, body }) => handleEmailSend(req, res, body), { body: true });

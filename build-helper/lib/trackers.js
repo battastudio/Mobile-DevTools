@@ -7,7 +7,7 @@ const { readConfig, sendJson } = require('./state');
 const { basicAuth, apiGet } = require('./net');
 const { gitChangelog } = require('./project');
 const C = require('../../platform-kit').connectors;
-const { TRACKERS, trackerById, extractKeys, formatTasks, jiraBase, adf, jiraMeta, jiraAttach, createIssue, getConnector, readStore, saveConnector } = C;
+const { TRACKERS, trackerById, extractKeys, formatTasks, jiraBase, adf, jiraMeta, jiraAttach, createIssue, jiraSearch, getConnector, readStore, saveConnector } = C;
 
 // Per-app override wins over the shared store — same idiom as apple/play accounts.
 function resolveTracker(id, projectPath) {
@@ -34,6 +34,10 @@ async function collectTasks(projectPath, env) {
     return { count: items.length, items, text: formatTasks(items) };
   } catch { return { count: 0, items: [], text: '' }; }
 }
+
+// Build-page pickers: commit-scraped tasks for a project/env, and a Jira issue search to link.
+async function handleTasks(res, path, env) { return sendJson(res, 200, await collectTasks(path, env)); }
+async function jiraSearchFor(res, path, q) { return sendJson(res, 200, await jiraSearch(resolveTracker('jira', path), q)); }
 
 // ---------- Jira write path (create a "Mobile Release" work item) — build-helper specific ----------
 async function handleCreateRelease(req, res, body) {
@@ -82,5 +86,5 @@ async function handleCreateIssue(res, body) {
 
 module.exports = {
   jiraBase, TRACKERS, trackerById, resolveTracker, configuredTrackers, collectTasks,
-  jiraMeta, handleCreateRelease, handleCreateIssue, readStore, saveConnector,
+  jiraMeta, handleCreateRelease, handleCreateIssue, handleTasks, jiraSearchFor, readStore, saveConnector,
 };

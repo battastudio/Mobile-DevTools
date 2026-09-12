@@ -3,7 +3,10 @@
 // health, git metadata, changelog, and the app icon image.
 const fs = require('fs');
 const { spawn } = require('child_process');
+const { fetchUrl } = require('../../../platform-kit');
 const { BUILDS_JSON, readJson, readConfig, projectsRoot } = require('../state');
+
+const SECURITY_URL = process.env.SECURITY_URL || 'http://localhost:4110';
 const { dashboardData, handleAppSave, handleFavorite, handleReorder } = require('../dashboard');
 const { detectApp, scanProjects, gitBranches, gitLastCommit, gitChangelog, groupConventional, nextBuildNumber, appHealth, findAppIcon } = require('../project');
 const { setupStatus } = require('../setup');
@@ -48,6 +51,15 @@ function register(app) {
   app.r('POST', '/api/app/favorite', ({ res, body }) => handleFavorite(res, body), { body: true });
   app.r('POST', '/api/app/order', ({ res, body }) => handleReorder(res, body), { body: true });
   app.r('GET', '/api/app/health', ({ res, q }) => { const p = q.get('path'); if (!p || !fs.existsSync(p)) return J(res, 404, { error: 'not found' }); return J(res, 200, appHealth(p)); });
+  // Per-project security grades from the Mobile Security tool (4110). Best-effort — tolerates it being down.
+  app.r('GET', '/api/security/grades', async ({ res }) => {
+    const grades = {};
+    try {
+      const r = await fetchUrl(`${SECURITY_URL}/api/security/all`, { timeout: 2500 });
+      for (const a of (JSON.parse(r.body || '{}').apps || [])) if (a.path && a.grade) grades[a.path] = { letter: a.grade.letter, score: a.grade.score };
+    } catch {}
+    return J(res, 200, { grades });
+  });
   app.r('GET', '/api/gitmeta', ({ res, q }) => J(res, 200, gitLastCommit(q.get('path'), q.get('branch') || '') || {}));
   app.r('GET', '/api/changelog', ({ res, q }) => { const text = gitChangelog(q.get('path'), q.get('env')); return J(res, 200, { text: q.get('grouped') ? groupConventional(text) : text }); });
   app.r('GET', '/api/icon', ({ res, q }) => {
